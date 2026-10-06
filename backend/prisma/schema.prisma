@@ -1,0 +1,236 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  owner
+  admin
+  staff
+}
+
+enum OrderStatus {
+  open
+  in_progress
+  completed
+  cancelled
+}
+
+enum PaymentMethod {
+  cash
+  card
+  transfer
+  other
+}
+
+model User {
+  id         String   @id @default(cuid())
+  telegramId String?  @unique
+  phone      String?
+  name       String?
+  username   String?
+  role       UserRole @default(staff)
+  status     String   @default("active")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  workshops      Workshop[]     @relation("WorkshopOwner")
+  createdOrders  ServiceOrder[] @relation("OrderCreator")
+  notifications Notification[]
+
+  @@index([telegramId])
+  @@index([phone])
+}
+
+model Workshop {
+  id          String   @id @default(cuid())
+  name        String
+  phone       String?
+  address     String?
+  description String?
+  logoUrl     String?
+  ownerUserId String?
+  ownerUser  User?    @relation("WorkshopOwner", fields: [ownerUserId], references: [id])
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customers Customer[]
+  vehicles  Vehicle[]
+  orders    ServiceOrder[]
+  services  Service[]
+  parts     Part[]
+  settings  Setting[]
+
+  @@index([ownerUserId])
+}
+
+model Customer {
+  id         String   @id @default(cuid())
+  workshopId String
+  workshop   Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  name       String
+  phone      String?
+  notes      String?
+  status     String   @default("active")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  vehicles Vehicle[]
+  orders   ServiceOrder[]
+  payments Payment[]
+
+  @@index([workshopId])
+  @@index([phone])
+  @@index([name])
+}
+
+model Vehicle {
+  id         String   @id @default(cuid())
+  workshopId String
+  workshop   Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  make       String
+  model      String?
+  plate      String
+  year       Int?
+  color      String?
+  vin        String?
+  mileage    Int?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  orders ServiceOrder[]
+
+  @@index([workshopId])
+  @@index([customerId])
+  @@index([plate])
+}
+
+model Service {
+  id         String   @id @default(cuid())
+  workshopId String
+  workshop   Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  name       String
+  defaultPrice Decimal @db.Decimal(14, 2)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  items OrderItem[]
+
+  @@index([workshopId])
+}
+
+model Part {
+  id          String   @id @default(cuid())
+  workshopId  String
+  workshop    Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  name        String
+  defaultPrice Decimal @db.Decimal(14, 2)
+  stock       Decimal  @default(0) @db.Decimal(14, 2)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items OrderItem[]
+
+  @@index([workshopId])
+}
+
+model ServiceOrder {
+  id          String      @id @default(cuid())
+  workshopId  String
+  workshop    Workshop   @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  customerId  String
+  customer    Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vehicleId   String
+  vehicle     Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  createdById String?
+  createdBy   User?      @relation("OrderCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  status      OrderStatus @default(open)
+  total       Decimal    @default(0) @db.Decimal(14, 2)
+  paid        Decimal    @default(0) @db.Decimal(14, 2)
+  debt        Decimal    @default(0) @db.Decimal(14, 2)
+  dueDate     DateTime?
+  note        String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  items    OrderItem[]
+  payments Payment[]
+
+  @@index([workshopId])
+  @@index([customerId])
+  @@index([vehicleId])
+  @@index([debt])
+  @@index([dueDate])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id        String       @id @default(cuid())
+  orderId   String
+  order     ServiceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  serviceId String?
+  service   Service?     @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  partId    String?
+  part      Part?        @relation(fields: [partId], references: [id], onDelete: SetNull)
+  name      String
+  quantity  Decimal @default(1) @db.Decimal(12, 3)
+  unitPrice Decimal @db.Decimal(14, 2)
+  total     Decimal @db.Decimal(14, 2)
+
+  @@index([orderId])
+  @@index([serviceId])
+  @@index([partId])
+}
+
+model Payment {
+  id         String       @id @default(cuid())
+  orderId    String
+  order      ServiceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  amount     Decimal      @db.Decimal(14, 2)
+  method     PaymentMethod @default(cash)
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([orderId])
+  @@index([customerId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  message   String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}
+
+model Setting {
+  id         String   @id @default(cuid())
+  workshopId String
+  workshop   Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  key        String
+  value      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([workshopId, key])
+  @@index([workshopId])
+}
