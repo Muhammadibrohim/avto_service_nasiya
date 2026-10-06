@@ -1,8 +1,32 @@
 import { Router } from "express";
 import { prisma } from "./db.js";
+import { telegramAuth } from "./middleware/telegramAuth.js";
 import { auth, AuthRequest } from "./middleware/auth.js";
 
 export const router = Router();
+
+router.post("/auth/telegram", telegramAuth, async (req, res) => {
+  const tg = req.telegramUser!;
+  const telegramId = String(tg.id);
+  const name = [tg.first_name, tg.last_name].filter(Boolean).join(" ").trim() || tg.username || "Telegram user";
+
+  const result = await prisma.$transaction(async (tx) => {
+    let user = await tx.user.findUnique({ where: { telegramId } });
+    if (!user) {
+      user = await tx.user.create({ data: { telegramId, name, username: tg.username, role: "owner", status: "active" } });
+    } else {
+      user = await tx.user.update({ where: { id: user.id }, data: { name, username: tg.username } });
+    }
+
+    let workshop = await tx.workshop.findFirst({ where: { ownerUserId: user.id } });
+    if (!workshop) {
+      workshop = await tx.workshop.create({ data: { name: "AVTO SERVICE NASIYA", ownerUserId: user.id, status: "active" } });
+    }
+    return { user, workshop };
+  });
+
+  res.json(result);
+});
 
 router.get("/me", auth, async (req: AuthRequest, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
