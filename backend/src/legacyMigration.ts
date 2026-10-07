@@ -62,6 +62,8 @@ export async function migrateLegacyAvtoData() {
     owner = await prisma.user.findUnique({ where: { id: workshop.ownerUserId } });
   }
 
+  const createdById = owner?.id ?? null;
+
   const existingLegacyCustomer = await prisma.customer.findUnique({ where: { id: legacy.CUSTOMERS[0].customer_id } });
   if (existingLegacyCustomer) {
     return { skipped: true, reason: "legacy-data-already-present", workshopId: workshop.id };
@@ -135,7 +137,7 @@ export async function migrateLegacyAvtoData() {
           workshopId: workshop.id,
           customerId: o.customer_id,
           vehicleId: o.vehicle_id,
-          createdById: owner.id,
+          createdById,
           status: "completed",
           total: decimal(o.total),
           paid: decimal(o.paid),
