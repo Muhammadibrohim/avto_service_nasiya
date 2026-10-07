@@ -5,9 +5,10 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "prisma db push --accept-data-loss && node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
@@ -21,10 +22,10 @@
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
-    "@types/node": "^24.0.0",
+    "@types/node": "^24.0.3",
+    "@types/pg": "^8.15.5",
     "prisma": "^7.10.0",
     "tsx": "^4.20.3",
-    "typescript": "^5.9.2",
-    "@types/pg": "^8.15.5"
+    "typescript": "^5.9.2"
   }
 }
