@@ -3,7 +3,6 @@ import express from "express";
 import cors from "cors";
 import { prisma } from "./db.js";
 import { router } from "./routes.js";
-import { migrateLegacyAvtoData } from "./legacyMigration.js";
 
 const app=express();
 const port=Number(process.env.PORT||3000);
@@ -30,13 +29,6 @@ async function configureTelegramMenu(){
 }
 
 async function bootstrap(){
-  try{
-    const migration=await migrateLegacyAvtoData();
-    console.log("Legacy Sheets migration:",migration);
-  }catch(error){
-    console.error("Legacy Sheets migration failed:",error);
-  }
-
   app.listen(port,"0.0.0.0",()=>{
     console.log(`AVTO SERVICE NASIYA API: http://0.0.0.0:${port}`);
     void configureTelegramMenu();
