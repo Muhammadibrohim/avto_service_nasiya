@@ -39,7 +39,7 @@ function App(){
       {tab==="service"&&<ServiceForm customers={customers} services={services} parts={parts} onDone={load}/>}
       {tab==="debts"&&<Debtors debts={debts} onOpen={openCustomer}/>}
       {tab==="history"&&<History orders={orders}/>}
-      {tab==="analytics"&&<Analytics a={a}/>}
+      {tab==="analytics"&&<Analytics a={a}/>}\n      {tab==="settings"&&<section className="panel"><h2>Sozlamalar</h2><p>Ustaxona: {me?.workshop?.name}</p><p>Foydalanuvchi: {me?.user?.name}</p><p>Telegram Mini App: <b>LIVE</b></p></section>}
       {tab==="more"&&<More setTab={setTab}/>}
     </main>
     <nav>{[
