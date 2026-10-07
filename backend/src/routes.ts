@@ -73,11 +73,40 @@ router.get("/debts", auth, async (req: AuthRequest, res) => {
 
 router.get("/analytics", auth, async (req: AuthRequest, res) => {
   if (!req.user?.workshopId) return res.json({ orders: 0, revenue: 0, paid: 0, debt: 0 });
-  const [orders, aggregate] = await Promise.all([
+
+  let migration: unknown = null;
+  const existingCustomers = await prisma.customer.count({ where: { workshopId: req.user.workshopId } });
+
+  // Self-heal: if the workshop is still empty, retry the legacy import on the
+  // authenticated Mini App request instead of silently returning all-zero KPIs.
+  if (existingCustomers === 0) {
+    try {
+      migration = await migrateLegacyAvtoData();
+    } catch (error) {
+      migration = {
+        skipped: false,
+        error: error instanceof Error ? error.message : "Legacy migration failed"
+      };
+      console.error("Legacy migration during analytics failed:", error);
+    }
+  }
+
+  const [orders, aggregate, customers, vehicles] = await Promise.all([
     prisma.serviceOrder.count({ where: { workshopId: req.user.workshopId } }),
-    prisma.serviceOrder.aggregate({ where: { workshopId: req.user.workshopId }, _sum: { total: true, paid: true, debt: true } })
+    prisma.serviceOrder.aggregate({ where: { workshopId: req.user.workshopId }, _sum: { total: true, paid: true, debt: true } }),
+    prisma.customer.count({ where: { workshopId: req.user.workshopId } }),
+    prisma.vehicle.count({ where: { workshopId: req.user.workshopId } })
   ]);
-  res.json({ orders, revenue: aggregate._sum.total || 0, paid: aggregate._sum.paid || 0, debt: aggregate._sum.debt || 0 });
+
+  res.json({
+    orders,
+    revenue: aggregate._sum.total || 0,
+    paid: aggregate._sum.paid || 0,
+    debt: aggregate._sum.debt || 0,
+    customers,
+    vehicles,
+    migration
+  });
 });
 
 router.post("/payments", auth, async (req: AuthRequest, res) => {
