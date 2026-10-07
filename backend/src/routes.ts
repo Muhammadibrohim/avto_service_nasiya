@@ -93,3 +93,52 @@ router.post("/payments", auth, async (req: AuthRequest, res) => {
     res.status(400).json({ error: e instanceof Error ? e.message : "Payment failed" });
   }
 });
+
+
+router.post("/customers", auth, async (req: AuthRequest, res) => {
+  if (!req.user?.workshopId) return res.status(400).json({ error: "Workshop not found" });
+  const { name, phone, notes } = req.body;
+  if (!String(name || "").trim()) return res.status(400).json({ error: "Name is required" });
+  const customer = await prisma.customer.create({ data: { workshopId: req.user.workshopId, name: String(name).trim(), phone: phone ? String(phone).trim() : null, notes } });
+  res.status(201).json(customer);
+});
+
+router.post("/vehicles", auth, async (req: AuthRequest, res) => {
+  if (!req.user?.workshopId) return res.status(400).json({ error: "Workshop not found" });
+  const { customerId, make, model, plate, year, color, mileage } = req.body;
+  if (!customerId || !make || !plate) return res.status(400).json({ error: "Customer, make and plate are required" });
+  const customer = await prisma.customer.findFirst({ where: { id: customerId, workshopId: req.user.workshopId } });
+  if (!customer) return res.status(404).json({ error: "Customer not found" });
+  const vehicle = await prisma.vehicle.create({ data: { workshopId: req.user.workshopId, customerId, make, model, plate, year: year ? Number(year) : null, color, mileage: mileage ? Number(mileage) : null } });
+  res.status(201).json(vehicle);
+});
+
+router.get("/services", auth, async (req: AuthRequest, res) => {
+  if (!req.user?.workshopId) return res.json([]);
+  res.json(await prisma.service.findMany({ where: { workshopId: req.user.workshopId, active: true }, orderBy: { name: "asc" } }));
+});
+
+router.get("/parts", auth, async (req: AuthRequest, res) => {
+  if (!req.user?.workshopId) return res.json([]);
+  res.json(await prisma.part.findMany({ where: { workshopId: req.user.workshopId, active: true }, orderBy: { name: "asc" } }));
+});
+
+router.post("/orders", auth, async (req: AuthRequest, res) => {
+  if (!req.user?.workshopId) return res.status(400).json({ error: "Workshop not found" });
+  const { customerId, vehicleId, items = [], paid = 0, dueDate, note } = req.body;
+  if (!customerId || !vehicleId || !Array.isArray(items) || !items.length) return res.status(400).json({ error: "Customer, vehicle and at least one item are required" });
+  try {
+    const result = await prisma.$transaction(async tx => {
+      const customer = await tx.customer.findFirst({ where: { id: customerId, workshopId: req.user!.workshopId } });
+      const vehicle = await tx.vehicle.findFirst({ where: { id: vehicleId, workshopId: req.user!.workshopId, customerId } });
+      if (!customer || !vehicle) throw new Error("Customer or vehicle not found");
+      const normalized = items.map((i:any) => { const quantity=Number(i.quantity||1), unitPrice=Number(i.unitPrice||0); if(!i.name||quantity<=0||unitPrice<0) throw new Error("Invalid order item"); return { name:String(i.name), quantity, unitPrice, total:quantity*unitPrice, serviceId:i.serviceId||null, partId:i.partId||null }; });
+      const total = normalized.reduce((s:number,i:any)=>s+i.total,0);
+      const initialPaid=Math.min(Math.max(Number(paid||0),0),total);
+      const order=await tx.serviceOrder.create({data:{workshopId:req.user!.workshopId!,customerId,vehicleId,createdById:req.user!.id,total,paid:initialPaid,debt:total-initialPaid,dueDate:dueDate?new Date(dueDate):null,note,status:total-initialPaid===0?"completed":"open",items:{create:normalized}}});
+      if(initialPaid>0) await tx.payment.create({data:{orderId:order.id,customerId,amount:initialPaid,method:"cash",note:"Boshlang‘ich to‘lov"}});
+      return tx.serviceOrder.findUnique({where:{id:order.id},include:{customer:true,vehicle:true,items:true,payments:true}});
+    });
+    res.status(201).json(result);
+  } catch(e) { res.status(400).json({error:e instanceof Error?e.message:"Order creation failed"}); }
+});
