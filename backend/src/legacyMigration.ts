@@ -26,24 +26,40 @@ export async function migrateLegacyAvtoData() {
   const ownerTelegramId = String(legacy.meta.ownerChatId);
   let owner = await prisma.user.findUnique({ where: { telegramId: ownerTelegramId } });
 
-  if (!owner) {
-    owner = await prisma.user.create({
-      data: {
-        telegramId: ownerTelegramId,
-        name: "Xasanboy",
-        role: "owner",
-        status: "active"
-      }
+  let workshop = owner
+    ? await prisma.workshop.findFirst({ where: { ownerUserId: owner.id } })
+    : null;
+
+  // Prefer the already-created Mini App workshop when the legacy OWNER_CHAT_ID
+  // differs from the Telegram user that first opened the Mini App.
+  if (!workshop) {
+    workshop = await prisma.workshop.findFirst({
+      where: { name: "XASANBOY AUTO SERVICE" },
+      orderBy: { createdAt: "asc" }
     });
-  } else if (owner.role !== "owner") {
-    owner = await prisma.user.update({ where: { id: owner.id }, data: { role: "owner" } });
   }
 
-  let workshop = await prisma.workshop.findFirst({ where: { ownerUserId: owner.id } });
   if (!workshop) {
+    if (!owner) {
+      owner = await prisma.user.create({
+        data: {
+          telegramId: ownerTelegramId,
+          name: "Xasanboy",
+          role: "owner",
+          status: "active"
+        }
+      });
+    } else if (owner.role !== "owner") {
+      owner = await prisma.user.update({ where: { id: owner.id }, data: { role: "owner" } });
+    }
+
     workshop = await prisma.workshop.create({
       data: { name: "XASANBOY AUTO SERVICE", ownerUserId: owner.id, status: "active" }
     });
+  }
+
+  if (!owner && workshop.ownerUserId) {
+    owner = await prisma.user.findUnique({ where: { id: workshop.ownerUserId } });
   }
 
   const existingLegacyCustomer = await prisma.customer.findUnique({ where: { id: legacy.CUSTOMERS[0].customer_id } });
