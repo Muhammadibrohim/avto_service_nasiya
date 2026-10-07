@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "./db.js";
 import { telegramAuth } from "./middleware/telegramAuth.js";
 import { auth, AuthRequest } from "./middleware/auth.js";
+import { migrateLegacyAvtoData } from "./legacyMigration.js";
 
 export const router = Router();
 
@@ -24,6 +25,13 @@ router.post("/auth/telegram", telegramAuth, async (req, res) => {
     }
     return { user, workshop };
   });
+
+  try {
+    const migration = await migrateLegacyAvtoData();
+    console.log("Legacy migration after Telegram auth:", migration);
+  } catch (error) {
+    console.error("Legacy migration after Telegram auth failed:", error);
+  }
 
   res.json(result);
 });
