@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import { prisma } from "./db.js";
 import { router } from "./routes.js";
+import { migrateLegacyAvtoData } from "./legacyMigration.js";
 
 const app=express();
 const port=Number(process.env.PORT||3000);
@@ -16,6 +17,7 @@ app.get("/health",async(_req,res)=>{
 });
 
 app.use("/api",router);
+
 async function configureTelegramMenu(){
   const token=process.env.TELEGRAM_BOT_TOKEN;
   const url=process.env.TELEGRAM_MENU_URL||process.env.FRONTEND_URL?.split(",")[0]?.trim();
@@ -26,4 +28,19 @@ async function configureTelegramMenu(){
     console.log("Telegram menu button:",data?.ok?"configured":"failed");
   }catch(e){ console.error("Telegram menu setup failed:",e); }
 }
-app.listen(port,"0.0.0.0",()=>{console.log(`AVTO SERVICE NASIYA API: http://0.0.0.0:${port}`); void configureTelegramMenu();});
+
+async function bootstrap(){
+  try{
+    const migration=await migrateLegacyAvtoData();
+    console.log("Legacy Sheets migration:",migration);
+  }catch(error){
+    console.error("Legacy Sheets migration failed:",error);
+  }
+
+  app.listen(port,"0.0.0.0",()=>{
+    console.log(`AVTO SERVICE NASIYA API: http://0.0.0.0:${port}`);
+    void configureTelegramMenu();
+  });
+}
+
+void bootstrap();
