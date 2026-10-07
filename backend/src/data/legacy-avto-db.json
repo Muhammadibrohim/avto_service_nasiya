@@ -1,0 +1,63 @@
+{
+  "CUSTOMERS": [
+    {"customer_id":"CUS-8F4675BB","name":"Ali Valiyev","phone":"998934056341","created_at":"2026-09-18T21:07:45"},
+    {"customer_id":"CUS-F376F4EB","name":"Diyorbek","phone":"998500440444","created_at":"2026-09-19T11:15:00"},
+    {"customer_id":"CUS-65551A62","name":"Olim","phone":"998934056341","created_at":"2026-09-19T11:18:28"},
+    {"customer_id":"CUS-1D89CBC2","name":"Fahriddin shogird","phone":"998949074797","created_at":"2026-09-19T14:21:07"},
+    {"customer_id":"CUS-A3F3ADB6","name":"Abdullo","phone":"998502029894","created_at":"2026-09-19T14:28:02"},
+    {"customer_id":"CUS-8BB38D7C","name":"Aziz","phone":"998945678909","created_at":"2026-09-20T18:49:22"},
+    {"customer_id":"CUS-3EC79714","name":"Azimjon","phone":"770077578","created_at":"2026-09-21T09:44:30"},
+    {"customer_id":"CUS-7A8AE003","name":"Tillo","phone":"998931769402","created_at":"2026-10-03T15:36:09"}
+  ],
+  "VEHICLES": [
+    {"vehicle_id":"CAR-D1AE941E","customer_id":"CUS-8F4675BB","make_model":"hevrolet Malibu XL","plate":"50P001PP","created_at":"2026-09-18T21:08:27"},
+    {"vehicle_id":"CAR-DF37B949","customer_id":"CUS-F376F4EB","make_model":"Chevrolet Malibu XL","plate":"50F007FA","created_at":"2026-09-19T11:15:02"},
+    {"vehicle_id":"CAR-C10ACE57","customer_id":"CUS-65551A62","make_model":"Malibu XL","plate":"50B700BB","created_at":"2026-09-19T11:18:30"},
+    {"vehicle_id":"CAR-3B0FBFDC","customer_id":"CUS-1D89CBC2","make_model":"Cobalt","plate":"566","created_at":"2026-09-19T14:21:07"},
+    {"vehicle_id":"CAR-86C7A447","customer_id":"CUS-A3F3ADB6","make_model":"Nexiya 2","plate":"544","created_at":"2026-09-19T14:28:02"},
+    {"vehicle_id":"CAR-11CBAEB1","customer_id":"CUS-8BB38D7C","make_model":"Cobalt","plate":"50A566AA","created_at":"2026-09-20T18:49:23"},
+    {"vehicle_id":"CAR-B10BADE8","customer_id":"CUS-3EC79714","make_model":"Matiz","plate":"944","created_at":"2026-09-21T09:44:31"},
+    {"vehicle_id":"CAR-9C9A06AE","customer_id":"CUS-7A8AE003","make_model":"labo","plate":"566","created_at":"2026-10-03T15:36:09"}
+  ],
+  "SERVICE_ORDERS": [
+    {"order_id":"ORD-1D674475","customer_id":"CUS-8F4675BB","vehicle_id":"CAR-D1AE941E","total":170000,"paid":10000,"debt":160000,"due_date":"160000","status":"DEBT","created_at":"2026-09-18T21:12:08"},
+    {"order_id":"ORD-835E246F","customer_id":"CUS-8F4675BB","vehicle_id":"CAR-D1AE941E","total":500000,"paid":500000,"debt":0,"due_date":null,"status":"PAID","created_at":"2026-09-19T10:35:24"},
+    {"order_id":"ORD-241C36A5","customer_id":"CUS-7A8AE003","vehicle_id":"CAR-9C9A06AE","total":550000,"paid":0,"debt":550000,"due_date":"28.10.2026","status":"DEBT","created_at":"2026-10-03T15:42:01"}
+  ],
+  "ORDER_ITEMS": [
+    {"item_id":"ORD-1D674475-1","order_id":"ORD-1D674475","type":"SERVICE","item_name":"Kolodka almashtirish","amount":150000,"created_at":"2026-09-18T21:12:09"},
+    {"item_id":"ORD-1D674475-2","order_id":"ORD-1D674475","type":"PART","item_name":"moy filtr","amount":20000,"created_at":"2026-09-18T21:12:09"},
+    {"item_id":"ORD-835E246F-1","order_id":"ORD-835E246F","type":"SERVICE","item_name":"Kolodka almashtirish","amount":500000,"created_at":"2026-09-19T10:35:24"},
+    {"item_id":"ORD-241C36A5-1","order_id":"ORD-241C36A5","type":"OTHER","item_name":"Xizmat","amount":550000,"created_at":"2026-10-03T15:42:01"}
+  ],
+  "PAYMENTS": [
+    {"payment_id":"PAY-9379C3AD","order_id":"ORD-1D674475","customer_id":"CUS-8F4675BB","amount":10000,"paid_at":"2026-09-18T21:12:09"},
+    {"payment_id":"PAY-6112B161","order_id":"ORD-835E246F","customer_id":"CUS-8F4675BB","amount":100000,"paid_at":"2026-09-19T10:35:24"},
+    {"payment_id":"PAY-0BA3DBA3","order_id":"ORD-835E246F","customer_id":"CUS-8F4675BB","amount":200000,"paid_at":"2026-09-19T10:39:53"},
+    {"payment_id":"PAY-9D29E742","order_id":"ORD-835E246F","customer_id":"CUS-8F4675BB","amount":200000,"paid_at":"2026-09-19T10:41:13"}
+  ],
+  "SERVICES": [
+    {"service_id":"S001","name":"Kolodka almashtirish","status":"ACTIVE"},
+    {"service_id":"S002","name":"Moy quyish","status":"ACTIVE"},
+    {"service_id":"S003","name":"Podshipnik qo‘yish","status":"ACTIVE"},
+    {"service_id":"SVC-90C79FD6","name":"Kompyuter diagnostikasi","status":"ACTIVE"},
+    {"service_id":"SVC-764A31E1","name":"Sharavoy almashdi","status":"ACTIVE"},
+    {"service_id":"SVC-3AFE1181","name":"Orqa pochimnik R","status":"ACTIVE"}
+  ],
+  "PARTS": [
+    {"part_id":"PRT-D11E7F72","name":"Shoh padushka","status":"ACTIVE"},
+    {"part_id":"PRT-12443C3A","name":"Oldi kalodka","status":"ACTIVE"},
+    {"part_id":"PRT-5F4154A0","name":"Oldi pochimnik 2 ta","status":"ACTIVE"},
+    {"part_id":"PRT-B5648150","name":"Kulag L 185000","status":"ACTIVE"},
+    {"part_id":"PRT-1ECE3E0C","name":"185000","status":"ACTIVE"},
+    {"part_id":"PRT-81A3C0CE","name":"Orqa amartzator 1kt","status":"ACTIVE"},
+    {"part_id":"PRT-A00FA3F9","name":"Amrtizator","status":"ACTIVE"},
+    {"part_id":"PRT-D0DD18A9","name":"Sharavoy","status":"ACTIVE"},
+    {"part_id":"PRT-05675357","name":"Stilbizator rezina,\nCheripashka,\nMayatnik,\nSharavoy 2ta\nOldi amartizator\nOrqa amartizator\nOldi chashka\nSalon suxarik\nMexnat","status":"ACTIVE"}
+  ],
+  "SETTINGS": [
+    {"key":"OWNER_CHAT_ID","value":"6431865525"},
+    {"key":"REMINDER_ENABLED","value":"YES"}
+  ],
+  "meta":{"source":"AVTO SERVICE NASIYA DB.xlsx","ownerChatId":"6431865525"}
+}
