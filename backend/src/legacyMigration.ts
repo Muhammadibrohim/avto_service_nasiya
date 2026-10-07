@@ -1,5 +1,5 @@
 import { prisma } from "./db.js";
-import legacy from "../data/legacy-avto-db.json" with { type: "json" };
+import legacy from "./data/legacy-avto-db.json" with { type: "json" };
 
 function dateOrNull(value: unknown): Date | null {
   if (!value || typeof value !== "string") return null;
