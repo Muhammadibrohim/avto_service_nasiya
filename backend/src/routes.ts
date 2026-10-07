@@ -2,7 +2,6 @@ import { Router } from "express";
 import { prisma } from "./db.js";
 import { telegramAuth } from "./middleware/telegramAuth.js";
 import { auth, AuthRequest } from "./middleware/auth.js";
-import { migrateLegacyAvtoData } from "./legacyMigration.js";
 
 export const router = Router();
 
@@ -25,13 +24,6 @@ router.post("/auth/telegram", telegramAuth, async (req, res) => {
     }
     return { user, workshop };
   });
-
-  try {
-    const migration = await migrateLegacyAvtoData();
-    console.log("Legacy migration after Telegram auth:", migration);
-  } catch (error) {
-    console.error("Legacy migration after Telegram auth failed:", error);
-  }
 
   res.json(result);
 });
@@ -74,23 +66,6 @@ router.get("/debts", auth, async (req: AuthRequest, res) => {
 router.get("/analytics", auth, async (req: AuthRequest, res) => {
   if (!req.user?.workshopId) return res.json({ orders: 0, revenue: 0, paid: 0, debt: 0 });
 
-  let migration: unknown = null;
-  const existingCustomers = await prisma.customer.count({ where: { workshopId: req.user.workshopId } });
-
-  // Self-heal: if the workshop is still empty, retry the legacy import on the
-  // authenticated Mini App request instead of silently returning all-zero KPIs.
-  if (existingCustomers === 0) {
-    try {
-      migration = await migrateLegacyAvtoData();
-    } catch (error) {
-      migration = {
-        skipped: false,
-        error: error instanceof Error ? error.message : "Legacy migration failed"
-      };
-      console.error("Legacy migration during analytics failed:", error);
-    }
-  }
-
   const [orders, aggregate, customers, vehicles] = await Promise.all([
     prisma.serviceOrder.count({ where: { workshopId: req.user.workshopId } }),
     prisma.serviceOrder.aggregate({ where: { workshopId: req.user.workshopId }, _sum: { total: true, paid: true, debt: true } }),
@@ -104,8 +79,7 @@ router.get("/analytics", auth, async (req: AuthRequest, res) => {
     paid: aggregate._sum.paid || 0,
     debt: aggregate._sum.debt || 0,
     customers,
-    vehicles,
-    migration
+    vehicles
   });
 });
 
