@@ -54,7 +54,7 @@ function Dashboard(p:{a:any;orders:any[];debts:any[];setTab:(x:string)=>void}){
   return <><section className="hero"><span>XASANBOY AUTO SERVICE</span><strong>Boshqaruv paneli</strong><p>Servis, mijoz va qarzdorliklar bir joyda.</p></section>
   <section className="grid"><Card n={p.a?.orders??0} t="Buyurtmalar"/><Card n={money(p.a?.revenue)+" so‘m"} t="Aylanma"/><Card n={money(p.a?.paid)+" so‘m"} t="To‘langan"/><Card n={money(p.a?.debt)+" so‘m"} t="Qarz"/></section>
   <button className="primary" onClick={()=>p.setTab("service")}>＋ YANGI SERVIS</button>
-  <div className="quick"><button onClick={()=>p.setTab("debts")}>🔴 Qarzdorlar <b>{p.debts.length}</b></button><button onClick={()=>p.setTab("analytics")}>📊 Analitika</button><button onClick={()=>p.setTab("history")}>🧾 Servis tarixi</button></div>
+  <div className="quick"><button onClick={()=>p.setTab("debts")}>🔴 Qarzdorlar <b>{p.debts.length}</b></button><button onClick={()=>p.setTab("analytics")}>📊 Analitika</button></div>
 </>
 }
 
