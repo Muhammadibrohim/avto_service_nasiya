@@ -45,7 +45,7 @@ function App(){
       {tab==="more"&&<More setTab={setTab}/>}
     </main>
     <nav>{[
-      ["⌂","Dashboard","dashboard"],["👥","Mijozlar","customers"],["🔧","Servis","service"],["💳","To‘lov","payments"],["☰","Ko‘proq","more"]
+      ["⌂","Dashboard","dashboard"],["👥","Mijozlar","customers"],["💳","To‘lov","payments"],["☰","Ko‘proq","more"]
     ].map(x=><button className={tab===x[2]?"active":""} onClick={()=>setTab(x[2])} key={x[2]}><span>{x[0]}</span>{x[1]}</button>)}</nav>
   </div>
 }
@@ -111,16 +111,31 @@ function CustomerProfile(p:{customer:any;orders:any[];onBack:()=>void}){
 }
 
 function ServiceForm(p:{customers:any[];services:any[];parts:any[];onDone:()=>void}){
-  const[q,setQ]=React.useState(""),[c,setC]=React.useState(""),[v,setV]=React.useState("");
-  const[make,setMake]=React.useState(""),[model,setModel]=React.useState(""),[plate,setPlate]=React.useState("");
+  const[q,setQ]=React.useState(""),[c,setC]=React.useState(""),[v,setV]=React.useState(""),[newMode,setNewMode]=React.useState(false);
+  const[newName,setNewName]=React.useState(""),[newPhone,setNewPhone]=React.useState(""),[make,setMake]=React.useState(""),[model,setModel]=React.useState(""),[plate,setPlate]=React.useState("");
   const[name,setName]=React.useState(""),[price,setPrice]=React.useState(""),[items,setItems]=React.useState<any[]>([]),[paid,setPaid]=React.useState(""),[due,setDue]=React.useState(""),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState(""),[localCustomer,setLocalCustomer]=React.useState<any>(null);
   const selected=localCustomer?.id===c?localCustomer:p.customers.find(x=>x.id===c);
   const filtered=p.customers.filter(x=>`${x.name} ${x.phone||""}`.toLowerCase().includes(q.toLowerCase()));
+  const createCustomer=async()=>{
+    if(!newName.trim()||!newPhone.trim()||!make.trim()||!plate.trim())return setMsg("Ism, telefon, mashina markasi va davlat raqamini kiriting");
+    setBusy(true);setMsg("");
+    try{
+      const created=await api("/customers",{method:"POST",body:JSON.stringify({name:newName.trim(),phone:newPhone.trim()})});
+      try{
+        const vehicle=await api("/vehicles",{method:"POST",body:JSON.stringify({customerId:created.id,make:make.trim(),plate:plate.trim().toUpperCase()})});
+        const customer={...created,vehicles:[vehicle]};
+        setLocalCustomer(customer);setC(created.id);setV(vehicle.id);setNewMode(false);setQ("");
+        setNewName("");setNewPhone("");setMake("");setPlate("");
+        setMsg("✅ Mijoz va mashina saqlandi. Endi servis ma’lumotlarini kiriting.");p.onDone();
+      }catch(e:any){setMsg("⚠️ Mijoz saqlandi, mashina saqlanmadi: "+e.message);p.onDone()}
+    }catch(e:any){setMsg("❌ "+e.message)}finally{setBusy(false)}
+  };
   const createVehicle=async()=>{if(!c||!make.trim()||!plate.trim())return setMsg("Marka va davlat raqamini kiriting");setBusy(true);try{const created=await api("/vehicles",{method:"POST",body:JSON.stringify({customerId:c,make:make.trim(),model:model.trim(),plate:plate.trim().toUpperCase()})});const current=selected||{id:c,vehicles:[]};setLocalCustomer({...current,vehicles:[...(current.vehicles||[]),created]});setV(created.id);setMake("");setModel("");setPlate("");setMsg("✅ Avtomobil qo‘shildi");p.onDone()}catch(e:any){setMsg("❌ "+e.message)}finally{setBusy(false)}};
   const add=()=>{if(!name.trim()||!price)return setMsg("Ish/detal va narx kiriting");setItems([...items,{name:name.trim(),unitPrice:Number(price),quantity:1}]);setName("");setPrice("")};
   const submit=async()=>{if(!c||!v||!items.length)return setMsg("Mijoz, avtomobil va kamida bitta ish kiriting");setBusy(true);try{await api("/orders",{method:"POST",body:JSON.stringify({customerId:c,vehicleId:v,items,paid:Number(paid||0),dueDate:due||null})});setMsg("✅ Servis yaratildi");setItems([]);setPaid("");setDue("");p.onDone()}catch(e:any){setMsg("❌ "+e.message)}finally{setBusy(false)}};
   return <section><SectionTitle title="Yangi servis"/>
-    {!selected&&<><input placeholder="🔎 Mijozni qidirish: ism yoki telefon" value={q} onChange={e=>setQ(e.target.value)}/><div className="list">{filtered.slice(0,8).map(x=><div className="row" key={x.id} onClick={()=>{setC(x.id);setV("");setLocalCustomer(null);setQ(x.name)}}><div><b>{x.name}</b><small>{x.phone||"Telefon yo‘q"} · {x.vehicles?.length||0} ta avtomobil</small></div></div>)}{!filtered.length&&<div className="empty">Mijoz topilmadi</div>}</div></>}
+    {!selected&&!newMode&&<><input placeholder="🔎 Mijoz qidirish: ism yoki telefon" value={q} onChange={e=>setQ(e.target.value)}/><div className="list">{filtered.slice(0,8).map(x=><div className="row" key={x.id} onClick={()=>{setC(x.id);setV("");setLocalCustomer(null);setQ(x.name)}}><div><b>{x.name}</b><small>{x.phone||"Telefon yo‘q"} · {x.vehicles?.length||0} ta avtomobil</small></div></div>)}{!filtered.length&&<div className="empty">Mijoz topilmadi</div>}</div><button className="primary" onClick={()=>{setNewMode(true);setMsg("")}}>＋ YANGI MIJOZ QO‘SHISH</button></>}
+    {newMode&&<section className="panel"><h3>👤 Yangi mijoz</h3><input placeholder="Ism familiya" value={newName} onChange={e=>setNewName(e.target.value)}/><input placeholder="+998 telefon raqami" value={newPhone} onChange={e=>setNewPhone(e.target.value)}/><input placeholder="Mashina markasi (Cobalt, Malibu...)" value={make} onChange={e=>setMake(e.target.value)}/><input placeholder="Davlat raqami" value={plate} onChange={e=>setPlate(e.target.value)}/><button className="primary" disabled={busy} onClick={createCustomer}>{busy?"Saqlanmoqda...":"MIJOZNI SAQLASH"}</button><button className="back" onClick={()=>{setNewMode(false);setMake("");setPlate("")}}>← Mavjud mijozlardan tanlash</button></section>}
     {selected&&<><div className="panel"><h3>👤 {selected.name}</h3><p>{selected.phone||"Telefon kiritilmagan"}</p><button className="back" onClick={()=>{setC("");setV("");setLocalCustomer(null);setQ("")}}>← Boshqa mijoz</button></div>
       {!selected.vehicles?.length&&!v&&<div className="panel"><h3>🚗 Avtomobil qo‘shish</h3><input placeholder="Marka (Cobalt, Malibu...)" value={make} onChange={e=>setMake(e.target.value)}/><input placeholder="Model" value={model} onChange={e=>setModel(e.target.value)}/><input placeholder="Davlat raqami" value={plate} onChange={e=>setPlate(e.target.value)}/><button className="primary" disabled={busy} onClick={createVehicle}>{busy?"Saqlanmoqda...":"＋ AVTOMOBILNI SAQLASH"}</button></div>}
       {!!selected.vehicles?.length&&<select value={v} onChange={e=>setV(e.target.value)}><option value="">Avtomobilni tanlang</option>{selected.vehicles.map((x:any)=><option key={x.id} value={x.id}>{x.make} {x.model||""} — {x.plate}</option>)}</select>}
