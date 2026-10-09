@@ -15,6 +15,7 @@ async function api(path:string,options:RequestInit={}){
 }
 function money(v:any){return new Intl.NumberFormat("uz-UZ").format(Number(v||0))}
 function date(v:any){return v?new Date(v).toLocaleDateString("uz-UZ"):"—"}
+function dateTime(v:any){return v?new Date(v).toLocaleString("uz-UZ",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—"}
 
 function App(){
   const[tab,setTab]=React.useState("dashboard"),[me,setMe]=React.useState<any>(null),[a,setA]=React.useState<any>(null);
@@ -84,9 +85,11 @@ function Customers(p:{customers:any[];onDone:()=>void;onOpen:(x:any)=>void}){
 
 function CustomerProfile(p:{customer:any;orders:any[];onBack:()=>void}){
   const c=p.customer; const total=p.orders.reduce((s,x)=>s+Number(x.total||0),0), paid=p.orders.reduce((s,x)=>s+Number(x.paid||0),0);
+  const payments=p.orders.flatMap((order:any)=>(order.payments||[]).map((payment:any)=>({...payment,order}))).sort((a:any,b:any)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());
   return <section><button className="back" onClick={p.onBack}>← Mijozlarga</button><section className="hero"><span>MIJOZ PROFILI</span><strong>{c.name}</strong><p>📞 {c.phone||"Telefon kiritilmagan"}</p></section>
     <div className="grid"><Card n={c.vehicles?.length||0} t="Avtomobil"/><Card n={p.orders.length} t="Servis"/><Card n={money(total)+" so‘m"} t="Jami servis"/><Card n={money(Math.max(0,total-paid))+" so‘m"} t="Qarz"/></div>
     <section><SectionTitle title="Avtomobillar" count={c.vehicles?.length||0}/><div className="list">{(c.vehicles||[]).map((v:any)=><div className="row" key={v.id}><div><b>🚗 {v.make} {v.model||""}</b><small>{v.plate}</small></div></div>)}</div></section>
+    <section><SectionTitle title="To‘lovlar tarixi" count={payments.length}/><div className="list">{payments.map((payment:any)=><div className="row" key={payment.id}><div><b>💰 {money(payment.amount)} so‘m</b><small>{dateTime(payment.createdAt)} · {payment.order?.vehicle?.plate||"Avtomobil"} · {payment.note||"To‘lov"}</small></div><span>{payment.method==="cash"?"Naqd":payment.method==="card"?"Karta":payment.method==="transfer"?"O‘tkazma":"Boshqa"}</span></div>)}{!payments.length&&<div className="empty">Hali to‘lov kiritilmagan</div>}</div></section>
     <History orders={p.orders}/></section>
 }
 
