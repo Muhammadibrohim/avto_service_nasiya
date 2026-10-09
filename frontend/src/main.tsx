@@ -70,17 +70,34 @@ function List(p:{title:string;items:any[];amountKey?:string;customer?:boolean;on
 }
 
 function Customers(p:{customers:any[];onDone:()=>void;onOpen:(x:any)=>void}){
-  const[name,setName]=React.useState(""),[phone,setPhone]=React.useState(""),[selected,setSelected]=React.useState(""),[make,setMake]=React.useState(""),[model,setModel]=React.useState(""),[plate,setPlate]=React.useState("");
-  const[busy,setBusy]=React.useState(false),[vehicleBusy,setVehicleBusy]=React.useState(false),[msg,setMsg]=React.useState("");
-  const add=async()=>{if(!name.trim())return setMsg("Ism kiriting");setBusy(true);try{await api("/customers",{method:"POST",body:JSON.stringify({name,phone})});setName("");setPhone("");setMsg("✅ Mijoz qo‘shildi");p.onDone()}catch(e:any){setMsg("❌ "+e.message)}finally{setBusy(false)}};
-  const addVehicle=async()=>{if(!selected||!make.trim()||!plate.trim())return setMsg("Mijoz, marka va davlat raqamini kiriting");setVehicleBusy(true);try{await api("/vehicles",{method:"POST",body:JSON.stringify({customerId:selected,make:make.trim(),model:model.trim(),plate:plate.trim().toUpperCase()})});setMake("");setModel("");setPlate("");setMsg("✅ Avtomobil qo‘shildi");p.onDone()}catch(e:any){setMsg("❌ "+e.message)}finally{setVehicleBusy(false)}};
+  const[name,setName]=React.useState(""),[phone,setPhone]=React.useState(""),[make,setMake]=React.useState(""),[plate,setPlate]=React.useState("");
+  const[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState("");
+  const add=async()=>{
+    if(!name.trim())return setMsg("Ism kiriting");
+    if(!phone.trim())return setMsg("Telefon raqamini kiriting");
+    if(!make.trim()||!plate.trim())return setMsg("Mashina markasi va davlat raqamini kiriting");
+    setBusy(true);setMsg("");
+    try{
+      const customer=await api("/customers",{method:"POST",body:JSON.stringify({name:name.trim(),phone:phone.trim()})});
+      try{
+        await api("/vehicles",{method:"POST",body:JSON.stringify({customerId:customer.id,make:make.trim(),plate:plate.trim().toUpperCase()})});
+      }catch(e:any){
+        setMsg("⚠️ Mijoz saqlandi, lekin mashina saqlanmadi: "+e.message);
+        p.onDone();
+        return;
+      }
+      setName("");setPhone("");setMake("");setPlate("");
+      setMsg("✅ Mijoz va mashina saqlandi");
+      p.onDone();
+    }catch(e:any){setMsg("❌ "+e.message)}finally{setBusy(false)}
+  };
   return <section><SectionTitle title="Mijozlar" count={p.customers.length}/>
-    <input placeholder="Ism familiya" value={name} onChange={e=>setName(e.target.value)}/><input placeholder="+998..." value={phone} onChange={e=>setPhone(e.target.value)}/>
+    <input placeholder="Ism familiya" value={name} onChange={e=>setName(e.target.value)}/>
+    <input placeholder="+998 telefon raqami" value={phone} onChange={e=>setPhone(e.target.value)}/>
+    <input placeholder="Mashina markasi (Cobalt, Malibu...)" value={make} onChange={e=>setMake(e.target.value)}/>
+    <input placeholder="Davlat raqami" value={plate} onChange={e=>setPlate(e.target.value)}/>
     <button className="primary" disabled={busy} onClick={add}>{busy?"Saqlanmoqda...":"＋ MIJOZ QO‘SHISH"}</button>
-    <div className="panel"><h3>🚗 Avtomobil qo‘shish</h3><select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Mijozni tanlang</option>{p.customers.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
-      <input placeholder="Marka (Cobalt, Malibu...)" value={make} onChange={e=>setMake(e.target.value)}/><input placeholder="Model" value={model} onChange={e=>setModel(e.target.value)}/><input placeholder="Davlat raqami" value={plate} onChange={e=>setPlate(e.target.value)}/>
-      <button className="primary" disabled={vehicleBusy} onClick={addVehicle}>{vehicleBusy?"Saqlanmoqda...":"＋ AVTOMOBIL QO‘SHISH"}</button>
-    </div>{msg&&<p>{msg}</p>}<List title="" items={p.customers} customer onOpen={p.onOpen}/></section>
+    {msg&&<p>{msg}</p>}<List title="" items={p.customers} customer onOpen={p.onOpen}/></section>
 }
 
 function CustomerProfile(p:{customer:any;orders:any[];onBack:()=>void}){
