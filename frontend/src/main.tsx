@@ -55,7 +55,7 @@ function Dashboard(p:{a:any;orders:any[];debts:any[];setTab:(x:string)=>void}){
   <section className="grid"><Card n={p.a?.orders??0} t="Buyurtmalar"/><Card n={money(p.a?.revenue)+" so‘m"} t="Aylanma"/><Card n={money(p.a?.paid)+" so‘m"} t="To‘langan"/><Card n={money(p.a?.debt)+" so‘m"} t="Qarz"/></section>
   <button className="primary" onClick={()=>p.setTab("service")}>＋ YANGI SERVIS</button>
   <div className="quick"><button onClick={()=>p.setTab("debts")}>🔴 Qarzdorlar <b>{p.debts.length}</b></button><button onClick={()=>p.setTab("analytics")}>📊 Analitika</button><button onClick={()=>p.setTab("history")}>🧾 Servis tarixi</button></div>
-  <List title="Oxirgi buyurtmalar" items={p.orders.slice(0,5)} amountKey="total"/></>
+</>
 }
 
 function Card(p:{n:any;t:string}){return <div className="card"><strong>{p.n}</strong><span>{p.t}</span></div>}
