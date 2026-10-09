@@ -110,9 +110,14 @@ function ServiceForm(p:{customers:any[];services:any[];parts:any[];onDone:()=>vo
     </>}{msg&&<p>{msg}</p>}</section>
 }
 function Payments(p:{orders:any[];onDone:()=>void}){
-  const[o,setO]=React.useState(""),[amount,setAmount]=React.useState(""),[msg,setMsg]=React.useState("");
-  const pay=async()=>{if(!o||Number(amount)<=0)return setMsg("Buyurtma va summa kiriting");try{await api("/payments",{method:"POST",body:JSON.stringify({orderId:o,amount:Number(amount)})});setMsg("✅ To‘lov saqlandi");setAmount("");p.onDone()}catch(e:any){setMsg("❌ "+e.message)}};
-  return <section><SectionTitle title="To‘lov kiritish" count={p.orders.length}/><select value={o} onChange={e=>setO(e.target.value)}><option value="">Qarzli buyurtmani tanlang</option>{p.orders.map(x=><option key={x.id} value={x.id}>{x.customer?.name} · {x.vehicle?.plate} · {money(x.debt)} so‘m</option>)}</select><input type="number" placeholder="To‘lov summasi" value={amount} onChange={e=>setAmount(e.target.value)}/><button className="primary" onClick={pay}>TO‘LOVNI SAQLASH</button>{msg&&<p>{msg}</p>}</section>
+  const[o,setO]=React.useState(""),[amount,setAmount]=React.useState(""),[msg,setMsg]=React.useState(""),[q,setQ]=React.useState("");
+  const filtered=p.orders.filter(x=>`${x.customer?.name||""} ${x.vehicle?.plate||""}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const pay=async()=>{if(!o||Number(amount)<=0)return setMsg("Buyurtma va summa kiriting");try{await api("/payments",{method:"POST",body:JSON.stringify({orderId:o,amount:Number(amount)})});setMsg("✅ To‘lov saqlandi");setAmount("");setQ("");p.onDone()}catch(e:any){setMsg("❌ "+e.message)}};
+  return <section><SectionTitle title="To‘lov kiritish" count={p.orders.length}/>
+    <input placeholder="🔎 Ism yoki mashina raqami bo‘yicha qidirish" value={q} onChange={e=>{setQ(e.target.value);setO("")}}/>
+    <select value={o} onChange={e=>setO(e.target.value)}><option value="">Qarzli buyurtmani tanlang</option>{filtered.map(x=><option key={x.id} value={x.id}>{x.customer?.name} · {x.vehicle?.plate} · {money(x.debt)} so‘m</option>)}</select>
+    {!filtered.length&&<div className="empty">Mos qarzdor topilmadi</div>}
+    <input type="number" placeholder="To‘lov summasi" value={amount} onChange={e=>setAmount(e.target.value)}/><button className="primary" onClick={pay}>TO‘LOVNI SAQLASH</button>{msg&&<p>{msg}</p>}</section>
 }
 
 function Debtors(p:{debts:any[];onOpen:(x:any)=>void}){return <section><SectionTitle title="Qarzdorlar" count={p.debts.length}/><div className="list">{p.debts.map(x=><div className="row" key={x.id} onClick={()=>p.onOpen(x.customer)}><div><b>{x.customer?.name}</b><small>🚗 {x.vehicle?.plate} · {x.dueDate?date(x.dueDate):"Muddat belgilanmagan"}</small></div><strong>{money(x.debt)} so‘m</strong></div>)}</div>{!p.debts.length&&<div className="empty">Qarzdor yo‘q 🎉</div>}</section>}
