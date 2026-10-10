@@ -78,8 +78,9 @@ function List(p:{title:string;items:any[];amountKey?:string;customer?:boolean;on
 }
 
 function Customers(p:{customers:any[];onDone:()=>void;onOpen:(x:any)=>void}){
-  const[name,setName]=React.useState(""),[phone,setPhone]=React.useState(""),[make,setMake]=React.useState(""),[plate,setPlate]=React.useState("");
+  const[name,setName]=React.useState(""),[phone,setPhone]=React.useState(""),[make,setMake]=React.useState(""),[plate,setPlate]=React.useState(""),[q,setQ]=React.useState(""),[showAdd,setShowAdd]=React.useState(false);
   const[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState("");
+  const filtered=p.customers.filter(x=>`${x.name||""} ${x.phone||""} ${(x.vehicles||[]).map((v:any)=>v.plate||"").join(" ")}`.toLowerCase().includes(q.trim().toLowerCase()));
   const add=async()=>{
     if(!name.trim())return setMsg("Ism kiriting");
     if(!phone.trim())return setMsg("Telefon raqamini kiriting");
@@ -89,23 +90,22 @@ function Customers(p:{customers:any[];onDone:()=>void;onOpen:(x:any)=>void}){
       const customer=await api("/customers",{method:"POST",body:JSON.stringify({name:name.trim(),phone:phone.trim()})});
       try{
         await api("/vehicles",{method:"POST",body:JSON.stringify({customerId:customer.id,make:make.trim(),plate:plate.trim().toUpperCase()})});
-      }catch(e:any){
-        setMsg("⚠️ Mijoz saqlandi, lekin mashina saqlanmadi: "+e.message);
-        p.onDone();
-        return;
-      }
-      setName("");setPhone("");setMake("");setPlate("");
-      setMsg("✅ Mijoz va mashina saqlandi");
-      p.onDone();
+      }catch(e:any){setMsg("⚠️ Mijoz saqlandi, lekin mashina saqlanmadi: "+e.message);p.onDone();return;}
+      setName("");setPhone("");setMake("");setPlate("");setQ("");setShowAdd(false);
+      setMsg("✅ Mijoz va mashina saqlandi");p.onDone();
     }catch(e:any){setMsg("❌ "+e.message)}finally{setBusy(false)}
   };
   return <section><SectionTitle title="Mijozlar" count={p.customers.length}/>
-    <input placeholder="Ism familiya" value={name} onChange={e=>setName(e.target.value)}/>
-    <input placeholder="+998 telefon raqami" value={phone} onChange={e=>setPhone(e.target.value)}/>
-    <input placeholder="Mashina markasi (Cobalt, Malibu...)" value={make} onChange={e=>setMake(e.target.value)}/>
-    <input placeholder="Davlat raqami" value={plate} onChange={e=>setPlate(e.target.value)}/>
-    <button className="primary" disabled={busy} onClick={add}>{busy?"Saqlanmoqda...":"＋ MIJOZ QO‘SHISH"}</button>
-    {msg&&<p>{msg}</p>}<List title="" items={p.customers} customer onOpen={p.onOpen}/></section>
+    <button className="primary" onClick={()=>{setShowAdd(!showAdd);setMsg("")}}>{showAdd?"✕ BEKOR QILISH":"＋ MIJOZ QO‘SHISH"}</button>
+    {showAdd&&<section className="panel"><h3>Yangi mijoz</h3>
+      <input placeholder="Ism familiya" value={name} onChange={e=>setName(e.target.value)}/>
+      <input placeholder="+998 telefon raqami" value={phone} onChange={e=>setPhone(e.target.value)}/>
+      <input placeholder="Mashina markasi (Cobalt, Malibu...)" value={make} onChange={e=>setMake(e.target.value)}/>
+      <input placeholder="Davlat raqami" value={plate} onChange={e=>setPlate(e.target.value)}/>
+      <button className="primary" disabled={busy} onClick={add}>{busy?"Saqlanmoqda...":"SAQLASH"}</button>
+    </section>}
+    <input placeholder="🔎 Mijoz qidirish: ism, telefon yoki raqam" value={q} onChange={e=>setQ(e.target.value)}/>
+    {msg&&<p>{msg}</p>}<List title="" items={filtered} customer onOpen={p.onOpen}/></section>
 }
 
 function CustomerProfile(p:{customer:any;orders:any[];onBack:()=>void}){
