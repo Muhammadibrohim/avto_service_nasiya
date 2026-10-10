@@ -35,7 +35,7 @@ function App(){
     <main>
       {tab==="dashboard"&&<Dashboard a={a} orders={orders} debts={debts} setTab={setTab} onOpen={openCustomer}/>}
       {tab==="customers"&&<Customers customers={customers} onDone={load} onOpen={openCustomer}/>}
-      {tab==="profile"&&selectedCustomer&&<CustomerProfile customer={selectedCustomer} orders={orders.filter(x=>x.customerId===selectedCustomer.id)} onBack={()=>setTab("customers")} />}
+      {tab==="profile"&&selectedCustomer&&<CustomerProfile customer={selectedCustomer} orders={orders.filter(x=>x.customerId===selectedCustomer.id)} onBack={()=>setTab("customers")} onDone={load} />}
       {tab==="payments"&&<Payments orders={orders.filter(x=>Number(x.debt)>0)} onDone={load}/>}
       {tab==="service"&&<ServiceForm customers={customers} services={services} parts={parts} onDone={load}/>}
       {tab==="debts"&&<Debtors debts={debts} onOpen={openCustomer}/>}
@@ -108,14 +108,45 @@ function Customers(p:{customers:any[];onDone:()=>void;onOpen:(x:any)=>void}){
     {msg&&<p>{msg}</p>}<List title="" items={filtered} customer onOpen={p.onOpen}/></section>
 }
 
-function CustomerProfile(p:{customer:any;orders:any[];onBack:()=>void}){
-  const c=p.customer; const total=p.orders.reduce((s,x)=>s+Number(x.total||0),0), paid=p.orders.reduce((s,x)=>s+Number(x.paid||0),0);
+function CustomerProfile(p:{customer:any;orders:any[];onBack:()=>void;onDone:()=>void}){
+  const c=p.customer;
+  const total=p.orders.reduce((sum,x)=>sum+Number(x.total||0),0),paid=p.orders.reduce((sum,x)=>sum+Number(x.paid||0),0);
   const payments=p.orders.flatMap((order:any)=>(order.payments||[]).map((payment:any)=>({...payment,order}))).sort((a:any,b:any)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());
-  return <section><button className="back" onClick={p.onBack}>← Mijozlarga</button><section className="hero"><span>MIJOZ PROFILI</span><strong>{c.name}</strong><p>📞 {c.phone||"Telefon kiritilmagan"}</p></section>
+  const openOrders=p.orders.filter(x=>Number(x.debt)>0);
+  const [orderId,setOrderId]=React.useState(openOrders[0]?.id||"");
+  const [amount,setAmount]=React.useState("");
+  const [method,setMethod]=React.useState("cash");
+  const [note,setNote]=React.useState("");
+  const [busy,setBusy]=React.useState(false);
+  const [msg,setMsg]=React.useState("");
+  const selectedOrder=openOrders.find(x=>x.id===orderId);
+  const pay=async()=>{
+    const value=Number(amount);
+    if(!selectedOrder)return setMsg("To‘lov uchun qarzdor servis yo‘q");
+    if(!Number.isFinite(value)||value<=0)return setMsg("To‘lov summasini kiriting");
+    if(value>Number(selectedOrder.debt))return setMsg("Summa qolgan qarzdan oshmasligi kerak");
+    setBusy(true);setMsg("");
+    try{
+      await api("/payments",{method:"POST",body:JSON.stringify({orderId,amount:value,method,note:note.trim()||"Mijoz profilidan to‘lov"})});
+      setAmount("");setNote("");setMsg("✅ To‘lov muvaffaqiyatli saqlandi");p.onDone();
+    }catch(e:any){setMsg("❌ "+e.message)}finally{setBusy(false)}
+  };
+  return <section><button className="back" onClick={p.onBack}>← Mijozlarga</button>
+    <section className="hero"><span>MIJOZ PROFILI</span><strong>{c.name}</strong><p>📞 {c.phone||"Telefon kiritilmagan"}</p></section>
     <div className="grid"><Card n={c.vehicles?.length||0} t="Avtomobil"/><Card n={p.orders.length} t="Servis"/><Card n={money(total)+" so‘m"} t="Jami servis"/><Card n={money(Math.max(0,total-paid))+" so‘m"} t="Qarz"/></div>
+    <section className="profile-pay"><div className="profile-pay-head"><div><span>TO‘LOV QABUL QILISH</span><h3>Mijozdan to‘lov olish</h3></div><div className="profile-pay-icon">↗</div></div>
+      {openOrders.length>0?<><label>Qarzdor servis</label><select value={selectedOrder?orderId:""} onChange={e=>{setOrderId(e.target.value);setMsg("")}}><option value="" disabled>Servisni tanlang</option>{openOrders.map(x=><option key={x.id} value={x.id}>{x.vehicle?.plate||"Raqamsiz"} · qarz {money(x.debt)} so‘m</option>)}</select>
+      {selectedOrder&&<div className="profile-pay-balance"><span>Qolgan qarz</span><strong>{money(selectedOrder.debt)} so‘m</strong></div>}
+      <label>To‘lov summasi (so‘m)</label><input className="profile-pay-amount" type="number" min="1" max={selectedOrder?.debt||undefined} placeholder="Masalan, 200 000" value={amount} onChange={e=>setAmount(e.target.value)}/>
+      <div className="profile-pay-method"><button type="button" className={method==="cash"?"chosen":""} onClick={()=>setMethod("cash")}>💵 Naqd</button><button type="button" className={method==="card"?"chosen":""} onClick={()=>setMethod("card")}>💳 Karta</button><button type="button" className={method==="transfer"?"chosen":""} onClick={()=>setMethod("transfer")}>↗ O‘tkazma</button></div>
+      <input placeholder="Izoh (ixtiyoriy)" value={note} onChange={e=>setNote(e.target.value)}/>
+      <button className="profile-pay-submit" disabled={busy} onClick={pay}>{busy?"Saqlanmoqda...":"✓  TO‘LOVNI SAQLASH"}</button></>:<div className="profile-pay-empty">🎉 Bu mijozning to‘lanmagan qarzi yo‘q.</div>}
+      {msg&&<p className={msg.startsWith("✅")?"profile-pay-success":"profile-pay-error"}>{msg}</p>}
+    </section>
     <section><SectionTitle title="Avtomobillar" count={c.vehicles?.length||0}/><div className="list">{(c.vehicles||[]).map((v:any)=><div className="row" key={v.id}><div><b>🚗 {v.make} {v.model||""}</b><small>{v.plate}</small></div></div>)}</div></section>
     <section><SectionTitle title="To‘lovlar tarixi" count={payments.length}/><div className="list">{payments.map((payment:any)=><div className="row" key={payment.id}><div><b>💰 {money(payment.amount)} so‘m</b><small>{dateTime(payment.createdAt)} · {payment.order?.vehicle?.plate||"Avtomobil"} · {payment.note||"To‘lov"}</small></div><span>{payment.method==="cash"?"Naqd":payment.method==="card"?"Karta":payment.method==="transfer"?"O‘tkazma":"Boshqa"}</span></div>)}{!payments.length&&<div className="empty">Hali to‘lov kiritilmagan</div>}</div></section>
-    <History orders={p.orders}/></section>
+    <History orders={p.orders}/>
+  </section>
 }
 
 function ServiceForm(p:{customers:any[];services:any[];parts:any[];onDone:()=>void}){
