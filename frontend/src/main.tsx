@@ -33,7 +33,7 @@ function App(){
   return <div className="app">
     <header><div><small>AVTO SERVICE NASIYA</small><h1>{me?.workshop?.name||"Avto Service"}</h1></div><span className="avatar">{(me?.user?.name||"A")[0]}</span></header>
     <main>
-      {tab==="dashboard"&&<Dashboard a={a} orders={orders} debts={debts} setTab={setTab}/>}
+      {tab==="dashboard"&&<Dashboard a={a} orders={orders} debts={debts} setTab={setTab} onOpen={openCustomer}/>}
       {tab==="customers"&&<Customers customers={customers} onDone={load} onOpen={openCustomer}/>}
       {tab==="profile"&&selectedCustomer&&<CustomerProfile customer={selectedCustomer} orders={orders.filter(x=>x.customerId===selectedCustomer.id)} onBack={()=>setTab("customers")} />}
       {tab==="payments"&&<Payments orders={orders.filter(x=>Number(x.debt)>0)} onDone={load}/>}
@@ -50,7 +50,7 @@ function App(){
   </div>
 }
 
-function Dashboard(p:{a:any;orders:any[];debts:any[];setTab:(x:string)=>void}){
+function Dashboard(p:{a:any;orders:any[];debts:any[];setTab:(x:string)=>void;onOpen:(x:any)=>void}){
   const today=new Date();today.setHours(0,0,0,0);
   const reminderLimit=new Date(today);reminderLimit.setDate(reminderLimit.getDate()+3);
   const reminders=p.debts.filter(x=>{
@@ -59,7 +59,7 @@ function Dashboard(p:{a:any;orders:any[];debts:any[];setTab:(x:string)=>void}){
     return due<=reminderLimit;
   }).sort((a,b)=>new Date(a.dueDate).getTime()-new Date(b.dueDate).getTime());
   return <><section className="hero"><span>XASANBOY AUTO SERVICE</span><strong>Boshqaruv paneli</strong><p>Servis, mijoz va qarzdorliklar bir joyda.</p></section>
-  {reminders.length>0&&<section className="panel reminder-panel"><div className="sectionHead reminder-heading"><h2>🔔 To‘lov muddati eslatmalari</h2><b>{reminders.length}</b></div><p>To‘lov muddati o‘tgan yoki keyingi 3 kun ichida keladigan qarzlar.</p><div className="list">{reminders.slice(0,5).map(x=>{const due=new Date(x.dueDate);due.setHours(0,0,0,0);const days=Math.round((due.getTime()-today.getTime())/86400000);return <div className="row reminder-row" key={x.id} onClick={()=>p.setTab("debts")} style={{cursor:"pointer"}}><div><b>{x.customer?.name||"Mijoz"}</b><small>{days<0?"⚠️ Muddati o‘tgan":days===0?"⚠️ Bugun to‘lash kerak":`📅 ${date(x.dueDate)} gacha`} · 🚗 {x.vehicle?.plate||"—"}</small></div><strong>{money(x.debt)} so‘m</strong></div>})}</div>{reminders.length>5&&<button className="back" onClick={()=>p.setTab("debts")}>Barcha eslatmalarni ko‘rish</button>}</section>}
+  {reminders.length>0&&<section className="panel reminder-panel"><div className="sectionHead reminder-heading"><h2>🔔 To‘lov muddati eslatmalari</h2><b>{reminders.length}</b></div><p>To‘lov muddati o‘tgan yoki keyingi 3 kun ichida keladigan qarzlar.</p><div className="list">{reminders.slice(0,5).map(x=>{const due=new Date(x.dueDate);due.setHours(0,0,0,0);const days=Math.round((due.getTime()-today.getTime())/86400000);return <div className="row reminder-row" key={x.id} onClick={()=>x.customer&&p.onOpen(x.customer)} style={{cursor:"pointer"}}><div><b>{x.customer?.name||"Mijoz"}</b><small>{days<0?"⚠️ Muddati o‘tgan":days===0?"⚠️ Bugun to‘lash kerak":`📅 ${date(x.dueDate)} gacha`} · 🚗 {x.vehicle?.plate||"—"}</small></div><strong>{money(x.debt)} so‘m</strong></div>})}</div>{reminders.length>5&&<button className="back" onClick={()=>p.setTab("debts")}>Barcha eslatmalarni ko‘rish</button>}</section>}
   <section className="grid"><Card n={p.a?.orders??0} t="Buyurtmalar"/><Card n={money(p.a?.revenue)+" so‘m"} t="Aylanma"/><Card n={money(p.a?.paid)+" so‘m"} t="To‘langan"/><Card n={money(p.a?.debt)+" so‘m"} t="Qarz"/></section>
   <button className="primary" onClick={()=>p.setTab("service")}>＋ YANGI SERVIS</button>
   <div className="quick"><button onClick={()=>p.setTab("debts")}>🔴 Qarzdorlar <b>{p.debts.length}</b></button><button onClick={()=>p.setTab("analytics")}>📊 Analitika</button></div>
