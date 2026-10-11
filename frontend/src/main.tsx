@@ -87,10 +87,7 @@ function Customers(p:{customers:any[];onDone:()=>void;onOpen:(x:any)=>void}){
     if(!make.trim()||!plate.trim())return setMsg("Mashina markasi va davlat raqamini kiriting");
     setBusy(true);setMsg("");
     try{
-      const customer=await api("/customers",{method:"POST",body:JSON.stringify({name:name.trim(),phone:phone.trim()})});
-      try{
-        await api("/vehicles",{method:"POST",body:JSON.stringify({customerId:customer.id,make:make.trim(),plate:plate.trim().toUpperCase()})});
-      }catch(e:any){setMsg("⚠️ Mijoz saqlandi, lekin mashina saqlanmadi: "+e.message);p.onDone();return;}
+      await api("/customers/with-vehicle",{method:"POST",body:JSON.stringify({name:name.trim(),phone:phone.trim(),make:make.trim(),plate:plate.trim().toUpperCase()})});
       setName("");setPhone("");setMake("");setPlate("");setQ("");setShowAdd(false);
       setMsg("✅ Mijoz va mashina saqlandi");p.onDone();
     }catch(e:any){setMsg("❌ "+e.message)}finally{setBusy(false)}
@@ -159,14 +156,12 @@ function ServiceForm(p:{customers:any[];services:any[];parts:any[];onDone:()=>vo
     if(!newName.trim()||!newPhone.trim()||!make.trim()||!plate.trim())return setMsg("Ism, telefon, mashina markasi va davlat raqamini kiriting");
     setBusy(true);setMsg("");
     try{
-      const created=await api("/customers",{method:"POST",body:JSON.stringify({name:newName.trim(),phone:newPhone.trim()})});
-      try{
-        const vehicle=await api("/vehicles",{method:"POST",body:JSON.stringify({customerId:created.id,make:make.trim(),plate:plate.trim().toUpperCase()})});
-        const customer={...created,vehicles:[vehicle]};
-        setLocalCustomer(customer);setC(created.id);setV(vehicle.id);setNewMode(false);setQ("");
-        setNewName("");setNewPhone("");setMake("");setPlate("");
-        setMsg("✅ Mijoz va mashina saqlandi. Endi servis ma’lumotlarini kiriting.");p.onDone();
-      }catch(e:any){setMsg("⚠️ Mijoz saqlandi, mashina saqlanmadi: "+e.message);p.onDone()}
+      const customer=await api("/customers/with-vehicle",{method:"POST",body:JSON.stringify({name:newName.trim(),phone:newPhone.trim(),make:make.trim(),plate:plate.trim().toUpperCase()})});
+      const vehicle=customer.vehicles?.[0];
+      if(!vehicle)throw new Error("Avtomobil ma’lumoti qaytmadi");
+      setLocalCustomer(customer);setC(customer.id);setV(vehicle.id);setNewMode(false);setQ("");
+      setNewName("");setNewPhone("");setMake("");setPlate("");
+      setMsg("✅ Mijoz va mashina saqlandi. Endi servis ma’lumotlarini kiriting.");p.onDone();
     }catch(e:any){setMsg("❌ "+e.message)}finally{setBusy(false)}
   };
   const createVehicle=async()=>{if(!c||!make.trim()||!plate.trim())return setMsg("Marka va davlat raqamini kiriting");setBusy(true);try{const created=await api("/vehicles",{method:"POST",body:JSON.stringify({customerId:c,make:make.trim(),model:model.trim(),plate:plate.trim().toUpperCase()})});const current=selected||{id:c,vehicles:[]};setLocalCustomer({...current,vehicles:[...(current.vehicles||[]),created]});setV(created.id);setMake("");setModel("");setPlate("");setMsg("✅ Avtomobil qo‘shildi");p.onDone()}catch(e:any){setMsg("❌ "+e.message)}finally{setBusy(false)}};
