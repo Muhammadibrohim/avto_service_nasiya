@@ -105,7 +105,7 @@ router.post("/payments", auth, async (req: AuthRequest, res) => {
       const payment = await tx.payment.create({
         data: { orderId, customerId: order.customerId, amount: value, method, note }
       });
-      const updated = Number(order.debt) === value
+      const updated = Number(order.debt) === 0
         ? await tx.serviceOrder.update({ where: { id: orderId }, data: { status: "completed" } })
         : order;
       return { payment, order: updated };
