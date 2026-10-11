@@ -29,7 +29,7 @@ function App(){
   React.useEffect(()=>{tg?.ready?.();tg?.expand?.();api("/auth/telegram",{method:"POST"}).then(load).catch(e=>setErr(e.message))},[]);
   if(err)return <main><h1>AVTO SERVICE NASIYA</h1><div className="error">{err}</div><p>Telegram Mini App ichidan oching.</p></main>;
 
-  const openCustomer=(c:any)=>{setSelectedCustomer(c);setTab("profile")};
+  const openCustomer=(c:any)=>{setSelectedCustomer(customers.find(x=>x.id===c?.id)||c);setTab("profile")};
   return <div className="app">
     <header><div><small>AVTO SERVICE NASIYA</small><h1>{me?.workshop?.name||"Avto Service"}</h1></div><span className="avatar">{(me?.user?.name||"A")[0]}</span></header>
     <main>
