@@ -117,6 +117,34 @@ router.post("/payments", auth, async (req: AuthRequest, res) => {
 });
 
 
+router.post("/customers/with-vehicle", auth, async (req: AuthRequest, res) => {
+  if (!req.user?.workshopId) return res.status(400).json({ error: "Workshop not found" });
+  const { name, phone, make, plate } = req.body;
+  if (!String(name || "").trim() || !String(phone || "").trim() || !String(make || "").trim() || !String(plate || "").trim()) {
+    return res.status(400).json({ error: "Name, phone, vehicle make and plate are required" });
+  }
+  try {
+    const customer = await prisma.customer.create({
+      data: {
+        workshopId: req.user.workshopId,
+        name: String(name).trim(),
+        phone: String(phone).trim(),
+        vehicles: {
+          create: {
+            workshopId: req.user.workshopId,
+            make: String(make).trim(),
+            plate: String(plate).trim().toUpperCase()
+          }
+        }
+      },
+      include: { vehicles: true }
+    });
+    res.status(201).json(customer);
+  } catch (e) {
+    res.status(400).json({ error: e instanceof Error ? e.message : "Customer creation failed" });
+  }
+});
+
 router.post("/customers", auth, async (req: AuthRequest, res) => {
   if (!req.user?.workshopId) return res.status(400).json({ error: "Workshop not found" });
   const { name, phone, notes } = req.body;
