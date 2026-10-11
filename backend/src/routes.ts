@@ -86,17 +86,28 @@ router.get("/analytics", auth, async (req: AuthRequest, res) => {
 router.post("/payments", auth, async (req: AuthRequest, res) => {
   const { orderId, amount, method = "cash", note } = req.body;
   const value = Number(amount);
+  const allowedMethods = ["cash", "card", "transfer", "other"];
   if (!orderId || !Number.isFinite(value) || value <= 0) return res.status(400).json({ error: "Invalid payment" });
+  if (!allowedMethods.includes(method)) return res.status(400).json({ error: "Invalid payment method" });
+  if (!req.user?.workshopId) return res.status(400).json({ error: "Workshop not found" });
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      // Atomic balance check prevents two concurrent requests from overpaying the same debt.
+      const changed = await tx.serviceOrder.updateMany({
+        where: { id: orderId, workshopId: req.user!.workshopId, debt: { gte: value } },
+        data: { paid: { increment: value }, debt: { decrement: value } }
+      });
+      if (changed.count !== 1) throw new Error("Order not found or payment exceeds remaining debt");
+
       const order = await tx.serviceOrder.findFirst({ where: { id: orderId, workshopId: req.user!.workshopId } });
       if (!order) throw new Error("Order not found");
-      if (value > Number(order.debt)) throw new Error("Payment exceeds remaining debt");
-      const payment = await tx.payment.create({ data: { orderId, customerId: order.customerId, amount: value, method, note } });
-      const paid = Number(order.paid) + value;
-      const debt = Math.max(0, Number(order.total) - paid);
-      const updated = await tx.serviceOrder.update({ where: { id: orderId }, data: { paid, debt, status: debt === 0 ? "completed" : order.status } });
+      const payment = await tx.payment.create({
+        data: { orderId, customerId: order.customerId, amount: value, method, note }
+      });
+      const updated = Number(order.debt) === value
+        ? await tx.serviceOrder.update({ where: { id: orderId }, data: { status: "completed" } })
+        : order;
       return { payment, order: updated };
     });
     res.json(result);
