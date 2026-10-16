@@ -15,8 +15,17 @@ export type AuthRequest = Request & { user?: AuthUser };
 export async function resolveMembership(userId: string) {
   const member = await prisma.member.findFirst({ where: { userId }, orderBy: { createdAt: "asc" } });
   if (member) return member;
-  const owned = await prisma.workshop.findFirst({ where: { ownerUserId: userId }, orderBy: { createdAt: "asc" } });
-  if (!owned) return null;
+  // The first app version auto-created an empty workshop for every user, so an
+  // owner may have several. Prefer the one that actually holds data.
+  const ownedAll = await prisma.workshop.findMany({
+    where: { ownerUserId: userId },
+    include: { _count: { select: { customers: true, orders: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  if (!ownedAll.length) return null;
+  const owned = ownedAll.reduce((best, w) =>
+    w._count.customers + w._count.orders > best._count.customers + best._count.orders ? w : best,
+  );
   return prisma.member.upsert({
     where: { workshopId_userId: { workshopId: owned.id, userId } },
     create: { workshopId: owned.id, userId, role: "owner" },
