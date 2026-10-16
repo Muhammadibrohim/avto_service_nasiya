@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApi } from "../api";
 import { money, som } from "../format";
 import type { CatalogItem } from "../types";
@@ -9,12 +9,20 @@ export type DraftItem = { name: string; quantity: number; unitPrice: number; ser
 export const draftTotal = (items: DraftItem[]) => items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
 
 /** Order line editor with one-tap picks from the service / part catalog. */
-export function ItemsEditor({ items, onChange }: { items: DraftItem[]; onChange: (i: DraftItem[]) => void }) {
+/**
+ * `onPending` receives the half-typed line (name + price filled but "+" not
+ * pressed) so the parent can include it on save instead of silently dropping it.
+ */
+export function ItemsEditor({ items, onChange, onPending }: { items: DraftItem[]; onChange: (i: DraftItem[]) => void; onPending?: (i: DraftItem | null) => void }) {
   const services = useApi<CatalogItem[]>("/services").data ?? [];
   const parts = useApi<CatalogItem[]>("/parts").data ?? [];
   const [name, setName] = useState("");
   const [qty, setQty] = useState("1");
   const [price, setPrice] = useState("");
+
+  useEffect(() => {
+    onPending?.(name.trim() && price !== "" ? { name: name.trim(), quantity: Number(qty) || 1, unitPrice: Number(price) } : null);
+  }, [name, qty, price, onPending]);
 
   const add = (item: DraftItem) => onChange([...items, item]);
   const addCustom = () => {
@@ -32,7 +40,7 @@ export function ItemsEditor({ items, onChange }: { items: DraftItem[]; onChange:
           {parts.map((p) => <button key={p.id} className="chip" onClick={() => add({ name: p.name, quantity: 1, unitPrice: Number(p.defaultPrice), partId: p.id })}>⚙️ {p.name}{Number(p.stock) <= 0 ? " (0)" : ""}</button>)}
         </div>
       )}
-      <div className="addline">
+      <div className="addline" onKeyDown={(e) => { if (e.key === "Enter") addCustom(); }}>
         <input placeholder="Ish / detal nomi" value={name} onChange={(e) => setName(e.target.value)} />
         <input placeholder="Soni" inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value.replace(/[^\d.]/g, ""))} />
         <MoneyInput placeholder="Narx" value={price} onChange={setPrice} />
