@@ -6,6 +6,11 @@ datasource db {
   provider = "postgresql"
 }
 
+// NOTE: every change here must stay additive (new tables, nullable columns or
+// columns with defaults). Production runs `prisma db push` on startup without
+// --accept-data-loss, so a destructive change will stop the deploy instead of
+// silently dropping data.
+
 enum UserRole {
   owner
   admin
@@ -32,14 +37,17 @@ model User {
   phone      String?
   name       String?
   username   String?
+  // Legacy global role. Real permissions now live on Member.role (per workshop).
   role       UserRole @default(staff)
   status     String   @default("active")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  workshops      Workshop[]     @relation("WorkshopOwner")
-  createdOrders  ServiceOrder[] @relation("OrderCreator")
-  notifications Notification[]
+  workshops       Workshop[]     @relation("WorkshopOwner")
+  memberships     Member[]
+  createdOrders   ServiceOrder[] @relation("OrderCreator")
+  createdPayments Payment[]      @relation("PaymentCreator")
+  notifications   Notification[]
 
   @@index([telegramId])
   @@index([phone])
@@ -52,12 +60,16 @@ model Workshop {
   address     String?
   description String?
   logoUrl     String?
+  // not @unique on purpose: adding a unique constraint to an existing table makes
+  // `prisma db push` stop with a data-loss warning. Codes are random (32^8).
+  inviteCode  String?
   ownerUserId String?
-  ownerUser  User?    @relation("WorkshopOwner", fields: [ownerUserId], references: [id])
+  ownerUser   User?    @relation("WorkshopOwner", fields: [ownerUserId], references: [id])
   status      String   @default("active")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  members   Member[]
   customers Customer[]
   vehicles  Vehicle[]
   orders    ServiceOrder[]
@@ -66,6 +78,21 @@ model Workshop {
   settings  Setting[]
 
   @@index([ownerUserId])
+  @@index([inviteCode])
+}
+
+model Member {
+  id         String   @id @default(cuid())
+  workshopId String
+  workshop   Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       UserRole @default(staff)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([workshopId, userId])
+  @@index([userId])
 }
 
 model Customer {
@@ -113,14 +140,14 @@ model Vehicle {
 }
 
 model Service {
-  id         String   @id @default(cuid())
-  workshopId String
-  workshop   Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
-  name       String
-  defaultPrice Decimal @db.Decimal(14, 2)
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id           String   @id @default(cuid())
+  workshopId   String
+  workshop     Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  name         String
+  defaultPrice Decimal  @db.Decimal(14, 2)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   items OrderItem[]
 
@@ -128,15 +155,15 @@ model Service {
 }
 
 model Part {
-  id          String   @id @default(cuid())
-  workshopId  String
-  workshop    Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
-  name        String
-  defaultPrice Decimal @db.Decimal(14, 2)
-  stock       Decimal  @default(0) @db.Decimal(14, 2)
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  workshopId   String
+  workshop     Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  name         String
+  defaultPrice Decimal  @db.Decimal(14, 2)
+  stock        Decimal  @default(0) @db.Decimal(14, 2)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   items OrderItem[]
 
@@ -146,21 +173,25 @@ model Part {
 model ServiceOrder {
   id          String      @id @default(cuid())
   workshopId  String
-  workshop    Workshop   @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  workshop    Workshop    @relation(fields: [workshopId], references: [id], onDelete: Cascade)
   customerId  String
-  customer    Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customer    Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
   vehicleId   String
-  vehicle     Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  vehicle     Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   createdById String?
-  createdBy   User?      @relation("OrderCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?       @relation("OrderCreator", fields: [createdById], references: [id], onDelete: SetNull)
   status      OrderStatus @default(open)
-  total       Decimal    @default(0) @db.Decimal(14, 2)
-  paid        Decimal    @default(0) @db.Decimal(14, 2)
-  debt        Decimal    @default(0) @db.Decimal(14, 2)
+  total       Decimal     @default(0) @db.Decimal(14, 2)
+  paid        Decimal     @default(0) @db.Decimal(14, 2)
+  debt        Decimal     @default(0) @db.Decimal(14, 2)
   dueDate     DateTime?
+  mileage     Int?
   note        String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  cancelledAt DateTime?
+  cancelNote  String?
+  remindedAt  DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   items    OrderItem[]
   payments Payment[]
@@ -182,9 +213,9 @@ model OrderItem {
   partId    String?
   part      Part?        @relation(fields: [partId], references: [id], onDelete: SetNull)
   name      String
-  quantity  Decimal @default(1) @db.Decimal(12, 3)
-  unitPrice Decimal @db.Decimal(14, 2)
-  total     Decimal @db.Decimal(14, 2)
+  quantity  Decimal      @default(1) @db.Decimal(12, 3)
+  unitPrice Decimal      @db.Decimal(14, 2)
+  total     Decimal      @db.Decimal(14, 2)
 
   @@index([orderId])
   @@index([serviceId])
@@ -192,15 +223,17 @@ model OrderItem {
 }
 
 model Payment {
-  id         String       @id @default(cuid())
-  orderId    String
-  order      ServiceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  customerId String
-  customer   Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  amount     Decimal      @db.Decimal(14, 2)
-  method     PaymentMethod @default(cash)
-  note       String?
-  createdAt  DateTime @default(now())
+  id          String        @id @default(cuid())
+  orderId     String
+  order       ServiceOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customerId  String
+  customer    Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  amount      Decimal       @db.Decimal(14, 2)
+  method      PaymentMethod @default(cash)
+  note        String?
+  createdById String?
+  createdBy   User?         @relation("PaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime      @default(now())
 
   @@index([orderId])
   @@index([customerId])
@@ -208,15 +241,15 @@ model Payment {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   type      String
   title     String
   message   String
   link      String?
   readAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([userId, createdAt])
   @@index([userId, readAt])
