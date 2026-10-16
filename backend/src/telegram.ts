@@ -11,7 +11,7 @@ function parseInitData(initData: string): URLSearchParams {
   return new URLSearchParams(initData);
 }
 
-export function validateTelegramInitData(initData: string, botToken: string, maxAgeSeconds = 86400) {
+export function validateTelegramInitData(initData: string, botToken: string, maxAgeSeconds = Number(process.env.TELEGRAM_AUTH_MAX_AGE || 86400)) {
   const params = parseInitData(initData);
   const receivedHash = params.get("hash");
 
@@ -47,5 +47,40 @@ export function validateTelegramInitData(initData: string, botToken: string, max
   return {
     user: JSON.parse(userRaw) as TelegramUser,
     authDate,
+    startParam: params.get("start_param") || undefined,
   };
+}
+
+const TELEGRAM_API = "https://api.telegram.org";
+
+export function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+export function appUrl(): string | undefined {
+  return process.env.TELEGRAM_MENU_URL || process.env.FRONTEND_URL?.split(",")[0]?.trim() || undefined;
+}
+
+/** Sends an HTML message to a private chat. Returns false instead of throwing. */
+export async function sendTelegramMessage(chatId: string, html: string, withAppButton = true): Promise<boolean> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return false;
+  const url = appUrl();
+  const body: Record<string, unknown> = { chat_id: chatId, text: html, parse_mode: "HTML", disable_web_page_preview: true };
+  if (withAppButton && url) {
+    body.reply_markup = { inline_keyboard: [[{ text: "🔧 Ilovani ochish", web_app: { url } }]] };
+  }
+  try {
+    const r = await fetch(`${TELEGRAM_API}/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string };
+    if (!data.ok) console.warn("Telegram sendMessage failed:", chatId, data.description);
+    return Boolean(data.ok);
+  } catch (e) {
+    console.warn("Telegram sendMessage error:", e);
+    return false;
+  }
 }
