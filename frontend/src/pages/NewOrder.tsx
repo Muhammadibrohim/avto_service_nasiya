@@ -32,19 +32,21 @@ export function NewOrder(p: { customerId?: string; vehicleId?: string }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
-  const total = draftTotal(items);
+  const [pending, setPending] = useState<DraftItem | null>(null);
+  const allItems = pending ? [...items, pending] : items;
+  const total = draftTotal(allItems);
   const debt = Math.max(0, total - Number(paid || 0));
 
   const pickCustomer = (id: string, vId = "") => { setCustomerId(id); setVehicleId(vId); setNewCustomer(false); setQ(""); setMsg(""); };
 
   const submit = async () => {
     if (!customerId || !vehicleId) return setMsg("Mijoz va avtomobilni tanlang");
-    if (!items.length) return setMsg("Kamida bitta ish yoki detal qo‘shing");
+    if (!allItems.length) return setMsg("Kamida bitta ish yoki detal qo‘shing");
     setBusy(true); setMsg("");
     try {
       const order = await api<Order>("/orders", {
         method: "POST",
-        body: { customerId, vehicleId, items, paid: Number(paid || 0), paymentMethod: method, dueDate: debt > 0 ? due || null : null, mileage: mileage || null, note },
+        body: { customerId, vehicleId, items: allItems, paid: Number(paid || 0), paymentMethod: method, dueDate: debt > 0 ? due || null : null, mileage: mileage || null, note },
       });
       haptic("success");
       go({ name: "order", id: order.id });
@@ -103,7 +105,8 @@ export function NewOrder(p: { customerId?: string; vehicleId?: string }) {
       {c && vehicleId && (
         <>
           <SectionTitle title="Ishlar va detallar" count={items.length} />
-          <ItemsEditor items={items} onChange={setItems} />
+          <ItemsEditor items={items} onChange={setItems} onPending={setPending} />
+          {pending && <p className="hint">“{pending.name}” ham saqlashda qo‘shiladi.</p>}
 
           <SectionTitle title="To‘lov" />
           <Field label="Hozir to‘landi (so‘m)">
@@ -128,7 +131,7 @@ export function NewOrder(p: { customerId?: string; vehicleId?: string }) {
             <input placeholder="Probeg, km" inputMode="numeric" value={mileage} onChange={(e) => setMileage(e.target.value.replace(/\D/g, ""))} />
             <input placeholder="Izoh" value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
-          <button className="primary" disabled={busy || !items.length} onClick={submit}>
+          <button className="primary" disabled={busy || !allItems.length} onClick={submit}>
             {busy ? "Saqlanmoqda..." : `SERVISNI SAQLASH · ${som(total)}`}
           </button>
         </>
