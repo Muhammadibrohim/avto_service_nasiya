@@ -50,15 +50,22 @@ async function configureTelegramMenu() {
   }
 }
 
-/** Old versions stored plates as typed ("01 a 123bc"); bring them to the "01A123BC" form used for search. */
+/** Old versions stored plates and phones as typed; bring them to the normalized form used for search and display. */
 async function normalizeStoredPlates() {
   try {
     const n = await prisma.$executeRaw`
       UPDATE "Vehicle" SET plate = upper(regexp_replace(plate, '[[:space:]_.-]', '', 'g'))
       WHERE plate <> upper(regexp_replace(plate, '[[:space:]_.-]', '', 'g'))`;
     if (n) console.log(`Normalized ${n} vehicle plates`);
+    // phones: digits only, local 9-digit numbers get the 998 country code
+    const m = await prisma.$executeRaw`
+      UPDATE "Customer" SET phone = CASE
+          WHEN length(regexp_replace(phone, '[^0-9]', '', 'g')) = 9 THEN '998' || regexp_replace(phone, '[^0-9]', '', 'g')
+          ELSE regexp_replace(phone, '[^0-9]', '', 'g') END
+      WHERE phone IS NOT NULL AND (phone ~ '[^0-9]' OR length(phone) = 9)`;
+    if (m) console.log(`Normalized ${m} customer phones`);
   } catch (e) {
-    console.error("Plate normalization failed:", e);
+    console.error("Data normalization failed:", e);
   }
 }
 
