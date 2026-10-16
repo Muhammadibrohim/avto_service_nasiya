@@ -12,7 +12,10 @@ import { MethodPicker, Msg, MoneyInput } from "./ui";
 export function PayForm(p: { customerId: string; orders: Order[]; fixedOrderId?: string; onPaid: () => void }) {
   const open = p.orders.filter((o) => o.status !== "cancelled" && Number(o.debt) > 0);
   const totalDebt = open.reduce((s, o) => s + Number(o.debt), 0);
-  const [orderId, setOrderId] = useState(p.fixedOrderId ?? (open.length > 1 ? "all" : open[0]?.id ?? ""));
+  const defaultId = p.fixedOrderId ?? (open.length > 1 ? "all" : open[0]?.id ?? "");
+  const [picked, setOrderId] = useState(defaultId);
+  // after a payment the picked order may be closed — fall back to a valid choice
+  const orderId = picked === "all" ? (open.length > 1 ? "all" : open[0]?.id ?? "") : open.some((o) => o.id === picked) ? picked : defaultId;
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<Method>("cash");
   const [note, setNote] = useState("");
