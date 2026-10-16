@@ -61,7 +61,8 @@ customersRouter.get("/customers", async (req: AuthRequest, res) => {
     where.OR = [
       { name: { contains: q, mode: "insensitive" } },
       ...(digits.length >= 3 ? [{ phone: { contains: digits } }] : []),
-      ...(plate.length >= 2 ? [{ vehicles: { some: { plate: { contains: plate } } } }] : []),
+      ...(plate.length >= 2 ? [{ vehicles: { some: { plate: { contains: plate, mode: "insensitive" as const } } } }] : []),
+      { vehicles: { some: { plate: { contains: q, mode: "insensitive" as const } } } },
     ];
   }
   const customers = await prisma.customer.findMany({
@@ -120,7 +121,17 @@ customersRouter.post("/customers/with-vehicle", async (req: AuthRequest, res) =>
   res.status(201).json(await createCustomer(req));
 });
 
-const customerUpdateSchema = customerSchema.omit({ vehicle: true }).partial();
+const customerUpdateSchema = z.object({
+  name: z.string().trim().min(2, "Mijoz ismini kiriting").max(80).optional(),
+  // phone may be cleared, but if given it must look like a phone number
+  phone: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || (normalizePhone(v)?.length ?? 0) >= 9, "Telefon raqamini to‘g‘ri kiriting")
+    .optional()
+    .nullable(),
+  notes: z.string().max(500).optional().nullable(),
+});
 
 customersRouter.patch("/customers/:id", async (req: AuthRequest, res) => {
   const body = customerUpdateSchema.parse(req.body);

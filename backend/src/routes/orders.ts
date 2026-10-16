@@ -105,7 +105,8 @@ ordersRouter.get("/orders", async (req: AuthRequest, res) => {
   if (q) {
     where.OR = [
       { customer: { name: { contains: q, mode: "insensitive" } } },
-      { vehicle: { plate: { contains: normalizePlate(q) } } },
+      { vehicle: { plate: { contains: normalizePlate(q), mode: "insensitive" } } },
+      { vehicle: { plate: { contains: q, mode: "insensitive" } } },
       { items: { some: { name: { contains: q, mode: "insensitive" } } } },
     ];
   }
