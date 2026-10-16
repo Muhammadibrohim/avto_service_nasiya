@@ -3,8 +3,10 @@ services:
     name: avto-service-nasiya-api
     runtime: node
     rootDir: backend
-    buildCommand: npm install && npm run prisma:generate && npm run build
+    # --include=dev: TypeScript is needed for the build even with NODE_ENV=production
+    buildCommand: npm ci --include=dev && npm run prisma:generate && npm run build
     startCommand: npm start
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
@@ -16,3 +18,9 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
+      - key: TELEGRAM_MENU_URL
+        sync: false
+      - key: CRON_SECRET
+        generateValue: true
+      - key: REMINDER_HOUR
+        value: 9
