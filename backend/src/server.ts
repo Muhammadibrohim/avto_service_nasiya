@@ -50,8 +50,21 @@ async function configureTelegramMenu() {
   }
 }
 
+/** Old versions stored plates as typed ("01 a 123bc"); bring them to the "01A123BC" form used for search. */
+async function normalizeStoredPlates() {
+  try {
+    const n = await prisma.$executeRaw`
+      UPDATE "Vehicle" SET plate = upper(regexp_replace(plate, '[[:space:]_.-]', '', 'g'))
+      WHERE plate <> upper(regexp_replace(plate, '[[:space:]_.-]', '', 'g'))`;
+    if (n) console.log(`Normalized ${n} vehicle plates`);
+  } catch (e) {
+    console.error("Plate normalization failed:", e);
+  }
+}
+
 const server = app.listen(port, "0.0.0.0", () => {
   console.log(`AVTO SERVICE NASIYA API: http://0.0.0.0:${port}`);
+  void normalizeStoredPlates();
   void configureTelegramMenu();
   startReminderScheduler();
 });
