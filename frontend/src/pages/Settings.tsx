@@ -2,8 +2,8 @@ import { useState } from "react";
 import { api, useApi } from "../api";
 import { useApp } from "../nav";
 import { confirmDialog, haptic } from "../telegram";
-import type { Member, Role, Session, Settings as S } from "../types";
-import { Field, Msg, Row, SectionTitle } from "../components/ui";
+import type { Dashboard, Member, Role, Session, Settings as S } from "../types";
+import { Disclosure, Field, Msg, Row, SectionTitle } from "../components/ui";
 
 const ROLE: Record<Role, string> = { owner: "Ega", admin: "Admin", staff: "Usta / xodim" };
 
@@ -63,6 +63,7 @@ export function Settings() {
           <button className="primary" onClick={save}>SAQLASH</button>
           <Msg text={msg} />
           <Members />
+          {role === "owner" && <JoinOtherIfEmpty />}
         </>
       ) : (
         <div className="panel"><p>🏠 {w.name}</p><p>Ustaxona sozlamalarini faqat ega yoki admin o‘zgartira oladi.</p></div>
@@ -120,6 +121,42 @@ function Members() {
         ))}
       </div>
       <Msg text={msg} />
+    </>
+  );
+}
+
+/** Shown only while the owner's workshop has no data — otherwise the server refuses anyway. */
+function JoinOtherIfEmpty() {
+  const { data } = useApi<Dashboard>("/dashboard");
+  if (!data || data.customers > 0 || data.orders > 0) return null;
+  return <JoinOther />;
+}
+
+/**
+ * The first app version created an empty workshop for everyone who opened the
+ * bot, so a mechanic could end up as the "owner" of nothing. This lets them
+ * join the real workshop; the server allows it only while theirs is empty.
+ */
+function JoinOther() {
+  const { setSession } = useApp();
+  const [code, setCode] = useState("");
+  const [msg, setMsg] = useState("");
+  const join = async () => {
+    if (!(await confirmDialog("Hozirgi bo‘sh ustaxonangiz o‘chiriladi va siz boshqa ustaxonaga xodim bo‘lib qo‘shilasiz. Davom etasizmi?"))) return;
+    try {
+      setSession(await api<Session>("/onboarding/join", { method: "POST", body: { code } }));
+      haptic("success");
+    } catch (e) { haptic("error"); setMsg("❌ " + (e as Error).message); }
+  };
+  return (
+    <>
+      <SectionTitle title="Boshqa ustaxonaga o‘tish" />
+      <Disclosure label="🔑 TAKLIF KODI BILAN QO‘SHILISH" openLabel="✕ YOPISH">
+        <p>Agar siz aslida boshqa ustaxonada ishlasangiz, egasidan taklif kodini olib shu yerga kiriting. Bu faqat sizning ustaxonangizda hali mijoz va servis bo‘lmasa ishlaydi.</p>
+        <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="ABCD2345" autoCapitalize="characters" />
+        <button className="primary" onClick={join} disabled={code.trim().length < 4}>QO‘SHILISH</button>
+        <Msg text={msg} />
+      </Disclosure>
     </>
   );
 }

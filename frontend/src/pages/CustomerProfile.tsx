@@ -13,6 +13,7 @@ export function CustomerProfile({ id }: { id: string }) {
   const { data: c, error, loading, reload } = useApi<CustomerDetail>(`/customers/${id}`);
   const [editing, setEditing] = useState(false);
   const [editVehicle, setEditVehicle] = useState<Vehicle | null>(null);
+  const [msg, setMsg] = useState("");
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
   if (loading && !c) return <Loading />;
@@ -24,7 +25,7 @@ export function CustomerProfile({ id }: { id: string }) {
   const remove = async () => {
     if (!(await confirmDialog(`${c.name} o‘chirilsinmi?`))) return;
     try { await api(`/customers/${c.id}`, { method: "DELETE" }); haptic("success"); back(); }
-    catch (e) { haptic("error"); alert((e as Error).message); }
+    catch (e) { haptic("error"); setMsg("❌ " + (e as Error).message); }
   };
 
   return (
@@ -39,6 +40,7 @@ export function CustomerProfile({ id }: { id: string }) {
           {isManager && !c.orders.length && <button className="chip danger" onClick={remove}>O‘chirish</button>}
         </div>
       </section>
+      <Msg text={msg} />
       {editing && <EditCustomer c={c} onSaved={() => { setEditing(false); reload(); }} />}
 
       <div className="grid">
