@@ -61,3 +61,5 @@ export type Report = {
 export type Member = { id: string; role: Role; user: { id: string; name: string | null; username: string | null } };
 
 export type Page<T> = { items: T[]; nextCursor: string | null };
+
+export type AuditEntry = { id: string; action: string; label: string; entity: string; entityId: string | null; details: string | null; userName: string | null; createdAt: string };

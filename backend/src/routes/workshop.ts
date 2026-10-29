@@ -36,7 +36,10 @@ workshopRouter.patch("/workshop", managers, async (req: AuthRequest, res) => {
 });
 
 workshopRouter.post("/workshop/invite", managers, async (req: AuthRequest, res) => {
-  const workshop = await prisma.workshop.update({ where: { id: ws(req) }, data: { inviteCode: generateInviteCode() } });
+  const [workshop] = await prisma.$transaction([
+    prisma.workshop.update({ where: { id: ws(req) }, data: { inviteCode: generateInviteCode() } }),
+    prisma.auditLog.create({ data: { workshopId: ws(req), userId: req.user!.id, action: "invite.regenerated", entity: "workshop", entityId: ws(req) } }),
+  ]);
   res.json({ inviteCode: workshop.inviteCode });
 });
 
@@ -56,7 +59,11 @@ workshopRouter.patch("/members/:id", requireRole("owner"), async (req: AuthReque
   const member = await prisma.member.findFirst({ where: { id: String(req.params.id), workshopId: ws(req) } });
   if (!member) throw notFound("Xodim topilmadi");
   if (member.role === "owner") throw badRequest("Egasining rolini o‘zgartirib bo‘lmaydi");
-  res.json(await prisma.member.update({ where: { id: member.id }, data: { role } }));
+  const [updated] = await prisma.$transaction([
+    prisma.member.update({ where: { id: member.id }, data: { role } }),
+    prisma.auditLog.create({ data: { workshopId: ws(req), userId: req.user!.id, action: "member.role_changed", entity: "member", entityId: member.userId, details: `${member.role} -> ${role}` } }),
+  ]);
+  res.json(updated);
 });
 
 workshopRouter.delete("/members/:id", managers, async (req: AuthRequest, res) => {
@@ -65,7 +72,10 @@ workshopRouter.delete("/members/:id", managers, async (req: AuthRequest, res) =>
   if (member.role === "owner") throw badRequest("Ustaxona egasini o‘chirib bo‘lmaydi");
   if (member.userId === req.user!.id) throw badRequest("O‘zingizni o‘chira olmaysiz");
   if (member.role === "admin" && req.user!.role !== "owner") throw forbidden("Adminni faqat ega o‘chira oladi");
-  await prisma.member.delete({ where: { id: member.id } });
+  await prisma.$transaction([
+    prisma.member.delete({ where: { id: member.id } }),
+    prisma.auditLog.create({ data: { workshopId: ws(req), userId: req.user!.id, action: "member.removed", entity: "member", entityId: member.userId, details: member.role } }),
+  ]);
   res.json({ ok: true });
 });
 
@@ -73,4 +83,31 @@ workshopRouter.delete("/members/:id", managers, async (req: AuthRequest, res) =>
 workshopRouter.post("/reminders/test", managers, async (req: AuthRequest, res) => {
   const result = await runRemindersForWorkshop(ws(req), { onlyChatId: req.user!.telegramId, force: true });
   res.json(result);
+});
+
+const ACTION_LABEL: Record<string, string> = {
+  "payment.deleted": "To‘lov o‘chirildi",
+  "order.cancelled": "Servis bekor qilindi",
+  "order.items_edited": "Narxlar o‘zgartirildi",
+  "customer.deleted": "Mijoz o‘chirildi",
+  "vehicle.deleted": "Avtomobil o‘chirildi",
+  "member.role_changed": "Xodim roli o‘zgardi",
+  "member.removed": "Xodim chiqarildi",
+  "invite.regenerated": "Taklif kodi yangilandi",
+  "order.voice_created": "Servis ovoz orqali kiritildi",
+};
+
+/** Recent sensitive actions, newest first (managers only). */
+workshopRouter.get("/audit", managers, async (req: AuthRequest, res) => {
+  const rows = await prisma.auditLog.findMany({
+    where: { workshopId: ws(req) },
+    orderBy: { createdAt: "desc" },
+    take: Math.min(Number(req.query.take) || 50, 200),
+  });
+  const users = await prisma.user.findMany({
+    where: { id: { in: [...new Set(rows.map((r) => r.userId).filter(Boolean) as string[])] } },
+    select: { id: true, name: true },
+  });
+  const names = new Map(users.map((u) => [u.id, u.name]));
+  res.json(rows.map((r) => ({ ...r, label: ACTION_LABEL[r.action] ?? r.action, userName: r.userId ? names.get(r.userId) ?? null : null })));
 });

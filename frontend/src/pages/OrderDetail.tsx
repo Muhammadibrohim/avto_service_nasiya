@@ -121,7 +121,7 @@ function OrderMeta({ o, onSave }: { o: Order; onSave: (b: object) => Promise<boo
   const changed = due !== (o.dueDate ? o.dueDate.slice(0, 10) : "") || note !== (o.note ?? "");
   return (
     <section className="panel">
-      {Number(o.debt) > 0 && <Field label="To‘lov muddati"><input type="date" value={due} min={isoDay(new Date())} onChange={(e) => setDue(e.target.value)} /></Field>}
+      {Number(o.debt) > 0 && <Field label="To‘lov muddati" hint="Bo‘sh qoldirilsa — bugundan 7 kun"><input type="date" value={due} min={isoDay(new Date())} onChange={(e) => setDue(e.target.value)} /></Field>}
       <Field label="Izoh"><textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
       {changed && <button className="primary" onClick={() => onSave({ dueDate: due || null, note })}>SAQLASH</button>}
     </section>

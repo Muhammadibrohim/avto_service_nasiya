@@ -267,3 +267,37 @@ model Setting {
   @@unique([workshopId, key])
   @@index([workshopId])
 }
+
+// Who did what: payment deletions, cancellations, price edits, staff changes.
+model AuditLog {
+  id         String   @id @default(cuid())
+  workshopId String
+  userId     String?
+  action     String
+  entity     String
+  entityId   String?
+  details    String?
+  createdAt  DateTime @default(now())
+
+  @@index([workshopId, createdAt])
+}
+
+// A service order parsed from a Telegram voice/text message, waiting for the
+// sender to press "Saqlash". Never written to real tables before confirmation.
+model VoiceDraft {
+  id         String   @id @default(cuid())
+  workshopId String
+  userId     String
+  chatId     String
+  messageId  Int?
+  transcript String
+  data       Json
+  status     String   @default("pending") // pending | saving | saved | cancelled | failed
+  orderId    String?
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([workshopId])
+}

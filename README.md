@@ -5,7 +5,8 @@ Avtoservislar uchun Telegram Mini App: mijozlar, avtomobillar, servislar va **na
 ## Imkoniyatlar
 
 - **Mijoz va avtomobil** — qo‘shish, tahrirlash, ism / telefon / davlat raqami bo‘yicha qidirish.
-- **Servis (buyurtma)** — katalogdan bir bosishda ish va detal qo‘shish, boshlang‘ich to‘lov (naqd/karta/o‘tkazma), nasiya muddati (+3/+7/+14/+30 kun), probeg, izoh.
+- **Servis (buyurtma)** — katalogdan bir bosishda ish va detal qo‘shish, boshlang‘ich to‘lov (naqd/karta/o‘tkazma), nasiya muddati (+3/+7/+14/+30 kun; bo‘sh qolsa avtomatik **7 kun**), probeg, izoh.
+- **Ovozli kiritish** — botga ovozli (yoki matnli) xabar: “01A123BC, Nexia, Malik aka, moy almashtirish 250 ming, 100 mingini berdi”. Bot mijoz, mashina, ishlar va nasiyani ajratib ko‘rsatadi, **✅ Saqlash** bosilgandagina yoziladi.
 - **To‘lovlar** — bitta servisga yoki mijozning barcha qarziga (eskisidan boshlab avtomatik taqsimlanadi). Bir vaqtda kelgan ikki to‘lov qarzdan oshib ketmaydi.
 - **Tuzatishlar** — narxlarni tahrirlash, xato to‘lovni o‘chirish, servisni bekor qilish (faqat ega/admin).
 - **Qarzdorlar** — mijoz bo‘yicha guruhlangan, kechikkan va 7 kun ichida to‘lanadiganlar filtri.
@@ -14,6 +15,7 @@ Avtoservislar uchun Telegram Mini App: mijozlar, avtomobillar, servislar va **na
 - **Katalog va ombor** — xizmat va detallar narxi, detal ishlatilganda qoldiq kamayadi, bekor qilinsa qaytadi.
 - **Xodimlar** — taklif kodi orqali usta qo‘shish; rollar: `owner` (ega), `admin`, `staff` (usta).
 - **Chek** — servis chekini Telegram orqali mijozga yuborish.
+- **Amallar jurnali** — to‘lov o‘chirish, bekor qilish, narx o‘zgartirish, xodim o‘zgarishlari kim tomonidan qilingani.
 
 ## Arxitektura
 
@@ -68,6 +70,14 @@ Mini App faqat Telegram ichida ishlaydi (`initData` kerak). Lokal sinash uchun b
 | `REMINDERS_ENABLED` | `false` — ichki rejalashtiruvchini o‘chiradi |
 | `CRON_SECRET` | `POST /api/cron/reminders` uchun maxfiy kalit |
 | `TZ_OFFSET_MINUTES` | Biznes vaqt zonasi, standart `300` (UTC+5) |
+| `PUBLIC_API_URL` | API manzili (bot webhook uchun). Render’da shart emas — `RENDER_EXTERNAL_URL` ishlatiladi |
+| `TELEGRAM_WEBHOOK_FORCE` | `true` — botda boshqa webhook bo‘lsa ham shu serverga o‘tkazadi |
+| `UZBEKVOICE_API_KEY` | uzbekvoice.ai kaliti (ovozni matnga aylantirish) |
+| `UZBEKVOICE_API_URL` | STT manzili, standart `https://uzbekvoice.ai/api/v1/stt` |
+| `ANTHROPIC_API_KEY` | Claude kaliti (matndan ma’lumot ajratish) |
+| `ANTHROPIC_MODEL` | standart `claude-fable-5-1`; arzonroq: `claude-sonnet-5-5`, `claude-haiku-5-5` |
+| `VOICE_LIMIT_PER_HOUR` | bir xodimga soatiga ovozli xabar limiti, standart `20` |
+| `API_RATE_LIMIT_PER_MIN` | bir IP uchun daqiqasiga API so‘rovlari, standart `300` |
 
 ### Eslatmalar Render bepul tarifida
 
@@ -79,6 +89,22 @@ Header: x-cron-secret: <CRON_SECRET>
 ```
 
 Eslatma faqat botga `/start` yozgan foydalanuvchilarga yetib boradi.
+
+## Ovozli kiritish va xavfsizlik
+
+```
+Ovoz ─► Telegram webhook (maxfiy kalit tekshiriladi)
+     ─► faqat ustaxona a’zosi? limitdan oshmaganmi? ≤ 2 daqiqa?
+     ─► UzbekVoice (ovoz → matn) ─► Claude (matn → JSON, faqat ajratadi)
+     ─► zod tekshiruvi ─► mijoz/mashinani bazadan topish ─► qoralama (30 daqiqa)
+     ─► “✅ Saqlash” (faqat yuborgan odam, bir marta) ─► oddiy POST /orders mantig‘i
+```
+
+- Webhook `X-Telegram-Bot-Api-Secret-Token` bilan himoyalangan; server ishga tushganda o‘zi o‘rnatadi. Botda boshqa xizmatning webhook’i bo‘lsa, uni buzmaydi (`TELEGRAM_WEBHOOK_FORCE=true` bilan o‘tkaziladi).
+- Mijoz avval davlat raqami, keyin telefon, keyin yagona mos ism bo‘yicha qidiriladi; topilmasa “yangi mijoz” deb ko‘rsatiladi.
+- Narxi aytilmagan ish katalogdan olinadi; katalogda ham bo‘lmasa, bot narxni so‘raydi — taxmin qilmaydi.
+- Qoralamalar 30 kundan keyin o‘chiriladi. Kalitlar loglarga yozilmaydi.
+- Productionda CORS faqat `FRONTEND_URL` / `TELEGRAM_MENU_URL` manziliga ochiq.
 
 ## Ma’lumotlar bazasi o‘zgarishlari
 
@@ -93,4 +119,4 @@ Eski versiyadan yangilanganda hech narsa qilish shart emas: mavjud ustaxona egas
 `POST|PATCH|DELETE /api/vehicles`, `GET|POST|PATCH /api/orders`, `POST /api/orders/:id/cancel`,
 `GET|POST|DELETE /api/payments`, `GET /api/debts`, `GET /api/dashboard`, `GET /api/reports`,
 `GET|POST|PATCH|DELETE /api/services|parts`, `PATCH /api/workshop`, `POST /api/workshop/invite`,
-`GET|PATCH|DELETE /api/members`, `POST /api/reminders/test`, `POST /api/cron/reminders`.
+`GET|PATCH|DELETE /api/members`, `GET /api/audit`, `POST /api/reminders/test`, `POST /api/cron/reminders`, `POST /api/telegram/webhook`.

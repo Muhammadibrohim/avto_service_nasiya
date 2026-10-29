@@ -2,7 +2,8 @@ import { useState } from "react";
 import { api, useApi } from "../api";
 import { useApp } from "../nav";
 import { confirmDialog, haptic } from "../telegram";
-import type { Dashboard, Member, Role, Session, Settings as S } from "../types";
+import type { AuditEntry, Dashboard, Member, Role, Session, Settings as S } from "../types";
+import { dateTime } from "../format";
 import { Disclosure, Field, Msg, Row, SectionTitle } from "../components/ui";
 
 const ROLE: Record<Role, string> = { owner: "Ega", admin: "Admin", staff: "Usta / xodim" };
@@ -63,6 +64,7 @@ export function Settings() {
           <button className="primary" onClick={save}>SAQLASH</button>
           <Msg text={msg} />
           <Members />
+          <AuditLog />
           {role === "owner" && <JoinOtherIfEmpty />}
         </>
       ) : (
@@ -156,6 +158,24 @@ function JoinOther() {
         <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="ABCD2345" autoCapitalize="characters" />
         <button className="primary" onClick={join} disabled={code.trim().length < 4}>QO‘SHILISH</button>
         <Msg text={msg} />
+      </Disclosure>
+    </>
+  );
+}
+
+/** Who deleted a payment, cancelled a service, changed prices or staff. */
+function AuditLog() {
+  const { data } = useApi<AuditEntry[]>("/audit?take=30");
+  return (
+    <>
+      <SectionTitle title="Amallar jurnali" count={data?.length} />
+      <Disclosure label="📜 JURNALNI KO‘RISH" openLabel="✕ YOPISH">
+        <div className="list">
+          {data?.map((a) => (
+            <Row key={a.id} title={a.label} sub={`${dateTime(a.createdAt)}${a.userName ? ` · ${a.userName}` : ""}${a.details ? ` · ${a.details}` : ""}`} />
+          ))}
+          {data && !data.length && <div className="empty">Hozircha yozuv yo‘q</div>}
+        </div>
       </Disclosure>
     </>
   );

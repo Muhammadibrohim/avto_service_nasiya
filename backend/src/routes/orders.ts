@@ -6,13 +6,14 @@ import { managers, ws, type AuthRequest } from "../middleware/auth.js";
 import { badRequest, conflict, forbidden, notFound } from "../lib/http.js";
 import { itemTotal, orderTotal, round2 } from "../lib/money.js";
 import { cleanText, normalizePlate } from "../lib/normalize.js";
-import { addDays, startOfLocalDay, parseLocalDate } from "../lib/time.js";
+import { addDays, startOfLocalDay, parseLocalDate, dueDateInDays, DEFAULT_DUE_DAYS } from "../lib/time.js";
+import { audit } from "../lib/audit.js";
 
 export const ordersRouter = Router();
 
 type Tx = Prisma.TransactionClient;
 
-const itemSchema = z.object({
+export const itemSchema = z.object({
   name: z.string().trim().min(1, "Ish yoki detal nomini kiriting").max(120),
   quantity: z.coerce.number().positive("Miqdor 0 dan katta bo‘lsin").max(100000).default(1),
   unitPrice: z.coerce.number().min(0, "Narx manfiy bo‘lmasin").max(1e12),
@@ -29,7 +30,7 @@ const dueDateSchema = z
 
 const methodSchema = z.enum(["cash", "card", "transfer", "other"], "To‘lov turi noto‘g‘ri");
 
-const createSchema = z.object({
+export const createSchema = z.object({
   customerId: z.string().min(1, "Mijozni tanlang"),
   vehicleId: z.string().min(1, "Avtomobilni tanlang"),
   items: z.array(itemSchema).min(1, "Kamida bitta ish yoki detal kiriting").max(100),
@@ -129,41 +130,49 @@ ordersRouter.get("/orders/:id", async (req: AuthRequest, res) => {
   res.json(order);
 });
 
+export type CreateOrderInput = z.infer<typeof createSchema>;
+
+/**
+ * Creates a service order with its items, the first payment and stock moves.
+ * Shared by the Mini App (POST /orders) and the Telegram voice flow.
+ * A debt without a due date gets DEFAULT_DUE_DAYS so it is never forgotten.
+ */
+export async function createOrder(tx: Tx, workshopId: string, userId: string, body: CreateOrderInput) {
+  const vehicle = await tx.vehicle.findFirst({ where: { id: body.vehicleId, customerId: body.customerId, workshopId } });
+  if (!vehicle) throw notFound("Mijoz yoki avtomobil topilmadi");
+  const items = await normalizeItems(tx, workshopId, body.items);
+  const total = orderTotal(items);
+  const paid = round2(Math.min(body.paid, total));
+  const debt = round2(total - paid);
+  const order = await tx.serviceOrder.create({
+    data: {
+      workshopId,
+      customerId: body.customerId,
+      vehicleId: body.vehicleId,
+      createdById: userId,
+      total,
+      paid,
+      debt,
+      status: statusFor(debt),
+      dueDate: debt > 0 ? toDate(body.dueDate) ?? dueDateInDays(DEFAULT_DUE_DAYS) : null,
+      mileage: body.mileage ?? null,
+      note: cleanText(body.note),
+      items: { create: items },
+    },
+  });
+  await adjustStock(tx, items, -1);
+  if (paid > 0) {
+    await tx.payment.create({
+      data: { orderId: order.id, customerId: body.customerId, amount: paid, method: body.paymentMethod, note: "Boshlang‘ich to‘lov", createdById: userId },
+    });
+  }
+  if (body.mileage != null) await tx.vehicle.update({ where: { id: vehicle.id }, data: { mileage: body.mileage } });
+  return tx.serviceOrder.findUniqueOrThrow({ where: { id: order.id }, include: orderInclude });
+}
+
 ordersRouter.post("/orders", async (req: AuthRequest, res) => {
   const body = createSchema.parse(req.body);
-  const workshopId = ws(req);
-  const result = await prisma.$transaction(async (tx) => {
-    const vehicle = await tx.vehicle.findFirst({ where: { id: body.vehicleId, customerId: body.customerId, workshopId } });
-    if (!vehicle) throw notFound("Mijoz yoki avtomobil topilmadi");
-    const items = await normalizeItems(tx, workshopId, body.items);
-    const total = orderTotal(items);
-    const paid = round2(Math.min(body.paid, total));
-    const debt = round2(total - paid);
-    const order = await tx.serviceOrder.create({
-      data: {
-        workshopId,
-        customerId: body.customerId,
-        vehicleId: body.vehicleId,
-        createdById: req.user!.id,
-        total,
-        paid,
-        debt,
-        status: statusFor(debt),
-        dueDate: debt > 0 ? toDate(body.dueDate) : null,
-        mileage: body.mileage ?? null,
-        note: cleanText(body.note),
-        items: { create: items },
-      },
-    });
-    await adjustStock(tx, items, -1);
-    if (paid > 0) {
-      await tx.payment.create({
-        data: { orderId: order.id, customerId: body.customerId, amount: paid, method: body.paymentMethod, note: "Boshlang‘ich to‘lov", createdById: req.user!.id },
-      });
-    }
-    if (body.mileage != null) await tx.vehicle.update({ where: { id: vehicle.id }, data: { mileage: body.mileage } });
-    return tx.serviceOrder.findUniqueOrThrow({ where: { id: order.id }, include: orderInclude });
-  });
+  const result = await prisma.$transaction((tx) => createOrder(tx, ws(req), req.user!.id, body));
   res.status(201).json(result);
 });
 
@@ -204,9 +213,16 @@ ordersRouter.patch("/orders/:id", async (req: AuthRequest, res) => {
       await tx.orderItem.deleteMany({ where: { orderId: order.id } });
       await adjustStock(tx, items, -1);
       Object.assign(data, { total, debt, items: { create: items } });
+      await audit(tx, { workshopId, userId: req.user!.id, action: "order.items_edited", entity: "order", entityId: order.id, details: `Jami: ${Number(order.total)} -> ${total}` });
       // optimistic lock: fail if a payment arrived in between
       const locked = await tx.serviceOrder.updateMany({ where: { id: order.id, paid: order.paid }, data: { updatedAt: new Date() } });
       if (locked.count !== 1) throw conflict("Servis boshqa foydalanuvchi tomonidan o‘zgartirildi, qayta urinib ko‘ring");
+    }
+    // a debt must always have a due date: cleared or missing -> default
+    const nextDue = body.dueDate !== undefined ? toDate(body.dueDate) : order.dueDate;
+    if (debt > 0 && !nextDue) {
+      data.dueDate = dueDateInDays(DEFAULT_DUE_DAYS);
+      data.remindedAt = null;
     }
     data.status = statusFor(debt, body.status ?? order.status);
     await tx.serviceOrder.update({ where: { id: order.id }, data });
@@ -229,6 +245,7 @@ ordersRouter.post("/orders/:id/cancel", managers, async (req: AuthRequest, res) 
     if (order.status === "cancelled") throw conflict("Servis allaqachon bekor qilingan");
     if (order._count.payments > 0) throw conflict("To‘lovi bor servisni bekor qilishdan oldin to‘lovlarni o‘chiring");
     await adjustStock(tx, order.items, 1);
+    await audit(tx, { workshopId: ws(req), userId: req.user!.id, action: "order.cancelled", entity: "order", entityId: order.id, details: `Jami: ${Number(order.total)}${reason ? `; sabab: ${reason}` : ""}` });
     await tx.serviceOrder.update({
       where: { id: order.id },
       data: { status: "cancelled", debt: 0, cancelledAt: new Date(), cancelNote: cleanText(reason) },

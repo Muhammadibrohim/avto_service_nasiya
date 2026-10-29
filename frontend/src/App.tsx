@@ -30,7 +30,12 @@ const ROOTS = new Set(TABS.map((t) => t.route.name));
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState("");
-  const [stack, setStack] = useState<Route[]>([{ name: "dashboard" }]);
+  // the bot's "Ilovada ochish" button links to #order=<id>
+  const [stack, setStack] = useState<Route[]>(() => {
+    const id = /^#order=([a-z0-9]{10,40})$/.exec(window.location.hash)?.[1];
+    if (id) history.replaceState(null, "", window.location.pathname + window.location.search);
+    return id ? [{ name: "dashboard" }, { name: "order", id }] : [{ name: "dashboard" }];
+  });
   const route = stack[stack.length - 1];
 
   const start = useCallback(() => {

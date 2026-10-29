@@ -156,7 +156,10 @@ customersRouter.delete("/customers/:id", managers, async (req: AuthRequest, res)
   });
   if (!existing) throw notFound("Mijoz topilmadi");
   if (existing._count.orders > 0) throw conflict("Servis tarixi bor mijozni o‘chirib bo‘lmaydi");
-  await prisma.customer.delete({ where: { id: existing.id } });
+  await prisma.$transaction([
+    prisma.customer.delete({ where: { id: existing.id } }),
+    prisma.auditLog.create({ data: { workshopId: ws(req), userId: req.user!.id, action: "customer.deleted", entity: "customer", entityId: existing.id, details: existing.name } }),
+  ]);
   res.json({ ok: true });
 });
 
@@ -185,6 +188,9 @@ customersRouter.delete("/vehicles/:id", managers, async (req: AuthRequest, res) 
   });
   if (!existing) throw notFound("Avtomobil topilmadi");
   if (existing._count.orders > 0) throw conflict("Servis tarixi bor avtomobilni o‘chirib bo‘lmaydi");
-  await prisma.vehicle.delete({ where: { id: existing.id } });
+  await prisma.$transaction([
+    prisma.vehicle.delete({ where: { id: existing.id } }),
+    prisma.auditLog.create({ data: { workshopId: ws(req), userId: req.user!.id, action: "vehicle.deleted", entity: "vehicle", entityId: existing.id, details: `${existing.make} ${existing.plate}` } }),
+  ]);
   res.json({ ok: true });
 });

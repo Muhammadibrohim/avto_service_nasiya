@@ -24,3 +24,9 @@ services:
         generateValue: true
       - key: REMINDER_HOUR
         value: 9
+      - key: UZBEKVOICE_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-fable-5-1

@@ -117,7 +117,7 @@ export function NewOrder(p: { customerId?: string; vehicleId?: string }) {
           </Field>
           {Number(paid) > 0 && <MethodPicker value={method} onChange={setMethod} />}
           {debt > 0 && (
-            <Field label={`Nasiya: ${som(debt)} — qachongacha?`}>
+            <Field label={`Nasiya: ${som(debt)} — qachongacha?`} hint={due ? undefined : "Bo‘sh qolsa — 7 kundan keyin"}>
               <input type="date" value={due} min={isoDay(new Date())} onChange={(e) => setDue(e.target.value)} />
               <div className="chips">
                 {DUE_PRESETS.map((d) => {

@@ -6,7 +6,8 @@ import { managers, ws, type AuthRequest } from "../middleware/auth.js";
 import { badRequest, conflict, notFound } from "../lib/http.js";
 import { allocatePayment, round2 } from "../lib/money.js";
 import { cleanText } from "../lib/normalize.js";
-import { addDays, parseLocalDate } from "../lib/time.js";
+import { addDays, parseLocalDate, dueDateInDays, DEFAULT_DUE_DAYS } from "../lib/time.js";
+import { audit } from "../lib/audit.js";
 import { orderInclude, statusFor } from "./orders.js";
 
 export const paymentsRouter = Router();
@@ -109,7 +110,13 @@ paymentsRouter.delete("/payments/:id", managers, async (req: AuthRequest, res) =
       data: { paid: { decrement: payment.amount }, debt: { increment: payment.amount } },
     });
     const status = statusFor(Number(order.debt), order.status === "completed" ? "open" : order.status);
-    await tx.serviceOrder.update({ where: { id: order.id }, data: { status } });
+    // a fully paid order had no due date; once it owes again it needs one
+    const dueDate = Number(order.debt) > 0 && !order.dueDate ? dueDateInDays(DEFAULT_DUE_DAYS) : undefined;
+    await tx.serviceOrder.update({ where: { id: order.id }, data: { status, ...(dueDate && { dueDate, remindedAt: null }) } });
+    await audit(tx, {
+      workshopId: ws(req), userId: req.user!.id, action: "payment.deleted", entity: "order", entityId: order.id,
+      details: `${Number(payment.amount)} so‘m (${payment.method}), ${payment.createdAt.toISOString().slice(0, 10)}`,
+    });
     return tx.serviceOrder.findUniqueOrThrow({ where: { id: order.id }, include: orderInclude });
   });
   res.json(result);
